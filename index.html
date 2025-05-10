@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Reportes Urbanos - Chajarí</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        #map, #userMap {
+            height: 70vh;
+            width: 100%;
+            z-index: 1;
+        }
+        .legend {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.7;
+        }
+        .crosshair-cursor {
+            cursor: crosshair;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .incident-marker {
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .marker-cluster {
+            background-clip: padding-box;
+            border-radius: 20px;
+        }
+        .marker-cluster div {
+            width: 30px;
+            height: 30px;
+            margin-left: 5px;
+            margin-top: 5px;
+            text-align: center;
+            border-radius: 15px;
+            font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
+            font-weight: bold;
+        }
+        .marker-cluster span {
+            line-height: 30px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-6">
+        <header class="bg-blue-600 text-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold">Sistema de Reportes Urbanos</h1>
+                    <p class="mt-2">Municipalidad de Chajarí, Entre Ríos</p>
+                </div>
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Escudo_de_Chajar%C3%AD.svg/1200px-Escudo_de_Chajar%C3%AD.svg.png" alt="Escudo de Chajarí" class="h-16">
+            </div>
+        </header>
+
+        <div class="bg-white rounded-lg shadow-md mb-6">
+            <div class="flex border-b">
+                <button id="managementTab" class="tab-button px-6 py-3 font-medium text-gray-700 border-b-2 border-blue-500 bg-blue-50">Gestión de Reclamos</button>
+                <button id="userTab" class="tab-button px-6 py-3 font-medium text-gray-500 hover:text-gray-700">Reportar Incidente</button>
+            </div>
+
+            <!-- Management Dashboard -->
+            <div id="managementContent" class="tab-content active p-6">
+                <div class="flex flex-col lg:flex-row gap-6">
+                    <div class="lg:w-2/3">
+                        <h2 class="text-xl font-semibold mb-4">Mapa de Incidentes</h2>
+                        <div id="map"></div>
+                        <div class="legend mt-4 p-4 bg-gray-50 rounded-lg">
+                            <h3 class="font-semibold mb-2">Leyenda</h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="flex items-center">
+                                    <div class="incident-marker bg-red-500 mr-2"><i class="fas fa-road text-xs"></i></div>
+                                    <span>Baches</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <div class="incident-marker bg-yellow-500 mr-2"><i class="fas fa-traffic-light text-xs"></i></div>
+                                    <span>Semáforos</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <div class="incident-marker bg-green-500 mr-2"><i class="fas fa-trash text-xs"></i></div>
+                                    <span>Limpieza</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <div class="incident-marker bg-blue-500 mr-2"><i class="fas fa-car text-xs"></i></div>
+                                    <span>Tránsito</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <div class="incident-marker bg-purple-500 mr-2"><i class="fas fa-lightbulb text-xs"></i></div>
+                                    <span>Alumbrado</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <div class="incident-marker bg-orange-500 mr-2"><i class="fas fa-exclamation-triangle text-xs"></i></div>
+                                    <span>Otros</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lg:w-1/3">
+                        <div class="mb-6">
+                            <h2 class="text-xl font-semibold mb-4">Estadísticas</h2>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="bg-blue-100 p-4 rounded-lg">
+                                    <div class="text-blue-800 font-bold text-2xl" id="todayReports">0</div>
+                                    <div class="text-blue-600">Reportes hoy</div>
+                                </div>
+                                <div class="bg-green-100 p-4 rounded-lg">
+                                    <div class="text-green-800 font-bold text-2xl" id="monthReports">0</div>
+                                    <div class="text-green-600">Este mes</div>
+                                </div>
+                                <div class="bg-yellow-100 p-4 rounded-lg">
+                                    <div class="text-yellow-800 font-bold text-2xl" id="solvedPercentage">0%</div>
+                                    <div class="text-yellow-600">Resueltos</div>
+                                </div>
+                                <div class="bg-red-100 p-4 rounded-lg">
+                                    <div class="text-red-800 font-bold text-2xl" id="urgentReports">0</div>
+                                    <div class="text-red-600">Urgentes</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h2 class="text-xl font-semibold mb-4">Filtros</h2>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <div class="mb-3">
+                                    <label class="block text-gray-700 mb-1">Tipo de incidente</label>
+                                    <select id="filterType" class="w-full p-2 border rounded">
+                                        <option value="all">Todos</option>
+                                        <option value="bache">Baches</option>
+                                        <option value="semaforo">Semáforos</option>
+                                        <option value="limpieza">Limpieza</option>
+                                        <option value="transito">Tránsito</option>
+                                        <option value="alumbrado">Alumbrado</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="block text-gray-700 mb-1">Estado</label>
+                                    <select id="filterStatus" class="w-full p-2 border rounded">
+                                        <option value="all">Todos</option>
+                                        <option value="Iniciado">Iniciado</option>
+                                        <option value="En proceso">En proceso</option>
+                                        <option value="Solucionado">Solucionado</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="block text-gray-700 mb-1">Fecha</label>
+                                    <input type="date" id="filterDate" class="w-full p-2 border rounded">
+                                </div>
+                                <button id="applyFiltersBtn" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Aplicar Filtros</button>
+                                <button id="resetFiltersBtn" class="w-full mt-2 bg-gray-200 text-gray-700 py-2 rounded hover:bg-gray-300">Restablecer</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-8">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">Reportes</h2>
+                        <div class="flex items-center">
+                            <span class="text-sm text-gray-600 mr-2">Mostrar:</span>
+                            <select id="rowsPerPage" class="p-1 border rounded text-sm">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sortable" data-column="id">
+                                            ID <i class="fas fa-sort ml-1"></i>
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sortable" data-column="type">
+                                            Tipo <i class="fas fa-sort ml-1"></i>
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descripción</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sortable" data-column="date">
+                                            Fecha <i class="fas fa-sort ml-1"></i>
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sortable" data-column="status">
+                                            Estado <i class="fas fa-sort ml-1"></i>
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="reportsTableBody" class="bg-white divide-y divide-gray-200">
+                                    <!-- Reports will be loaded here dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                            <div class="flex-1 flex justify-between sm:hidden">
+                                <button id="prevPageMobile" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                                    Anterior
+                                </button>
+                                <button id="nextPageMobile" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                                    Siguiente
+                                </button>
+                            </div>
+                            <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-700" id="paginationInfo">
+                                        Mostrando <span class="font-medium">1</span> a <span class="font-medium">10</span> de <span class="font-medium">20</span> resultados
+                                    </p>
+                                </div>
+                                <div>
+                                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                                        <button id="firstPage" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                            <span class="sr-only">Primera</span>
+                                            <i class="fas fa-angle-double-left"></i>
+                                        </button>
+                                        <button id="prevPage" class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                            <span class="sr-only">Anterior</span>
+                                            <i class="fas fa-angle-left"></i>
+                                        </button>
+                                        <div id="pageNumbers" class="flex">
+                                            <!-- Page numbers will be added here -->
+                                        </div>
+                                        <button id="nextPage" class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                            <span class="sr-only">Siguiente</span>
+                                            <i class="fas fa-angle-right"></i>
+                                        </button>
+                                        <button id="lastPage" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                            <span class="sr-only">Última</span>
+                                            <i class="fas fa-angle-double-right"></i>
+                                        </button>
+                                    </nav>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Reporting App -->
+            <div id="userContent" class="tab-content p-6">
+                <div class="flex flex-col lg:flex-row gap-6">
+                    <div class="lg:w-2/3">
+                        <h2 class="text-xl font-semibold mb-4">Reportar un incidente</h2>
+                        <p class="mb-4 text-gray-600">Seleccione la ubicación exacta del incidente en el mapa haciendo clic en el lugar correspondiente.</p>
+                        <div id="userMap" class="crosshair-cursor"></div>
+                    </div>
+                    
+                    <div class="lg:w-1/3">
+                        <div class="bg-blue-50 p-4 rounded-lg mb-6">
+                            <h3 class="font-semibold text-blue-800 mb-2">Instrucciones</h3>
+                            <ol class="list-decimal list-inside text-blue-700 space-y-2">
+                                <li>Busque la ubicación en el mapa</li>
+                                <li>Haga clic exactamente donde ocurre el problema</li>
+                                <li>Complete el formulario que aparecerá</li>
+                                <li>Adjunte una foto si es posible</li>
+                                <li>Enviar el reporte</li>
+                            </ol>
+                        </div>
+                        
+                        <div id="reportForm" class="hidden bg-white p-4 rounded-lg shadow">
+                            <h3 class="font-semibold text-lg mb-3">Detalles del reporte</h3>
+                            <form id="incidentForm">
+                                <div class="mb-3">
+                                    <label class="block text-gray-700 mb-1">Título</label>
+                                    <input type="text" id="reportTitle" class="w-full p-2 border rounded" placeholder="Ej: Bache grande en la esquina" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="block text-gray-700 mb-1">Tipo de incidente</label>
+                                    <select id="reportType" class="w-full p-2 border rounded" required>
+                                        <option value="">Seleccione...</option>
+                                        <option value="bache">Bache</option>
+                                        <option value="semaforo">Semáforo dañado</option>
+                                        <option value="limpieza">Problema de limpieza</option>
+                                        <option value="transito">Problema de tránsito</option>
+                                        <option value="alumbrado">Alumbrado público</option>
+                                        <option value="otro">Otro</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="block text-gray-700 mb-1">Descripción</label>
+                                    <textarea id="reportDescription" class="w-full p-2 border rounded" rows="3" placeholder="Describa el problema con detalle..." required></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="block text-gray-700 mb-1">Adjuntar foto</label>
+                                    <div class="border-2 border-dashed border-gray-300 rounded p-4 text-center">
+                                        <div id="cameraPreview" class="hidden mb-2">
+                                            <img id="previewImage" src="#" alt="Preview" class="max-w-full max-h-40 mx-auto">
+                                        </div>
+                                        <button type="button" id="openCameraBtn" class="bg-blue-100 text-blue-700 px-4 py-2 rounded hover:bg-blue-200">
+                                            <i class="fas fa-camera mr-2"></i>Tomar foto
+                                        </button>
+                                        <input type="file" id="fileInput" accept="image/*" capture="environment" class="hidden">
+                                    </div>
+                                </div>
+                                <div class="flex justify-end gap-2">
+                                    <button type="button" id="cancelReportBtn" class="px-4 py-2 border rounded text-gray-700 hover:bg-gray-100">Cancelar</button>
+                                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Enviar reporte</button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <div id="successMessage" class="hidden bg-green-50 p-4 rounded-lg text-green-700">
+                            <div class="flex items-center">
+                                <i class="fas fa-check-circle text-green-500 text-2xl mr-2"></i>
+                                <div>
+                                    <h3 class="font-semibold">¡Reporte enviado con éxito!</h3>
+                                    <p class="text-sm">Número de seguimiento: #<span id="reportNumber">1246</span></p>
+                                </div>
+                            </div>
+                            <button id="newReportBtn" class="mt-3 w-full bg-green-600 text-white py-2 rounded hover:bg-green-700">Hacer otro reporte</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for report details -->
+    <div id="reportModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-2/3 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-xl font-semibold" id="modalTitle">Detalles del Reporte #<span id="modalReportId"></span></h3>
+                <button id="closeModal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="py-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h4 class="font-medium text-gray-700">Tipo:</h4>
+                        <p id="modalType" class="mt-1"></p>
+                    </div>
+                    <div>
+                        <h4 class="font-medium text-gray-700">Estado:</h4>
+                        <p id="modalStatus" class="mt-1"></p>
+                    </div>
+                    <div>
+                        <h4 class="font-medium text-gray-700">Fecha:</h4>
+                        <p id="modalDate" class="mt-1"></p>
+                    </div>
+                    <div>
+                        <h4 class="font-medium text-gray-700">Ubicación:</h4>
+                        <p id="modalLocation" class="mt-1"></p>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <h4 class="font-medium text-gray-700">Descripción:</h4>
+                    <p id="modalDescription" class="mt-1"></p>
+                </div>
+                <div class="mt-4">
+                    <h4 class="font-medium text-gray-700">Imagen:</h4>
+                    <div id="modalImageContainer" class="mt-2">
+                        <img id="modalImage" src="" alt="Imagen del reporte" class="max-w-full max-h-64 rounded">
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end pt-2 border-t">
+                <button id="markInProgressBtn" class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 mr-2">
+                    <i class="fas fa-spinner mr-1"></i> En proceso
+                </button>
+                <button id="markSolvedBtn" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
+                    <i class="fas fa-check mr-1"></i> Resolver
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script>
+        // Global variables
+        let allReports = [];
+        let filteredReports = [];
+        let currentPage = 1;
+        let rowsPerPage = 10;
+        let totalPages = 1;
+        let sortColumn = 'date';
+        let sortDirection = 'desc';
+        let selectedLocation = null;
+        let currentReportId = null;
+        let managementMap, userMap;
+        let markersCluster;
+
+        // Tab switching functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const managementTab = document.getElementById('managementTab');
+            const userTab = document.getElementById('userTab');
+            const managementContent = document.getElementById('managementContent');
+            const userContent = document.getElementById('userContent');
+            
+            managementTab.addEventListener('click', function() {
+                managementTab.classList.add('border-blue-500', 'bg-blue-50');
+                managementTab.classList.remove('text-gray-500', 'hover:text-gray-700');
+                userTab.classList.remove('border-blue-500', 'bg-blue-50');
+                userTab.classList.add('text-gray-500', 'hover:text-gray-700');
+                
+                managementContent.classList.add('active');
+                userContent.classList.remove('active');
+                
+                // Refresh map to ensure it displays correctly
+                setTimeout(() => {
+                    managementMap.invalidateSize();
+                }, 100);
+            });
+            
+            userTab.addEventListener('click', function() {
+                userTab.classList.add('border-blue-500', 'bg-blue-50');
+                userTab.classList.remove('text-gray-500', 'hover:text-gray-700');
+                managementTab.classList.remove('border-blue-500', 'bg-blue-50');
+                managementTab.classList.add('text-gray-500', 'hover:text-gray-700');
+                
+                userContent.classList.add('active');
+                managementContent.classList.remove('active');
+                
+                // Refresh map to ensure it displays correctly
+                setTimeout(() => {
+                    userMap.invalidateSize();
+                }, 100);
+            });
+            
+            // Initialize maps and reports
+            initManagementMap();
+            initUserMap();
+            loadSampleReports();
+            renderReportsTable();
+            updateStatistics();
+            
+            // Form handling for user reports
+            setupReportForm();
+            
+            // Table sorting
+            document.querySelectorAll('.sortable').forEach(header => {
+                header.addEventListener('click', () => {
+                    const column = header.getAttribute('data-column');
+                    if (sortColumn === column) {
+                        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        sortColumn = column;
+                        sortDirection = 'asc';
+                    }
+                    renderReportsTable();
+                });
+            });
+            
+            // Pagination
+            document.getElementById('rowsPerPage').addEventListener('change', function() {
+                rowsPerPage = parseInt(this.value);
+                currentPage = 1;
+                renderReportsTable();
+            });
+            
+            document.getElementById('prevPage').addEventListener('click', function() {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderReportsTable();
+                }
+            });
+            
+            document.getElementById('nextPage').addEventListener('click', function() {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderReportsTable();
+                }
+            });
+            
+            document.getElementById('firstPage').addEventListener('click', function() {
+                currentPage = 1;
+                renderReportsTable();
+            });
+            
+            document.getElementById('lastPage').addEventListener('click', function() {
+                currentPage = totalPages;
+                renderReportsTable();
+            });
+            
+            document.getElementById('prevPageMobile').addEventListener('click', function() {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderReportsTable();
+                }
+            });
+            
+            document.getElementById('nextPageMobile').addEventListener('click', function() {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderReportsTable();
+                }
+            });
+            
+            // Filters
+            document.getElementById('applyFiltersBtn').addEventListener('click', function() {
+                applyFilters();
+                renderReportsTable();
+            });
+            
+            document.getElementById('resetFiltersBtn').addEventListener('click', function() {
+                document.getElementById('filterType').value = 'all';
+                document.getElementById('filterStatus').value = 'all';
+                document.getElementById('filterDate').value = '';
+                applyFilters();
+                renderReportsTable();
+            });
+            
+            // Modal buttons
+            document.getElementById('closeModal').addEventListener('click', closeModal);
+            document.getElementById('markInProgressBtn').addEventListener('click', function() {
+                updateReportStatus(currentReportId, 'En proceso');
+                closeModal();
+            });
+            document.getElementById('markSolvedBtn').addEventListener('click', function() {
+                updateReportStatus(currentReportId, 'Solucionado');
+                closeModal();
+            });
+        });
+        
+        // Load sample reports
+        function loadSampleReports() {
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            
+            allReports = [
+                {
+                    id: 1245,
+                    type: 'bache',
+                    title: 'Bache profundo en Av. 9 de Julio y San Martín',
+                    description: 'Bache de aproximadamente 40cm de profundidad en la esquina noreste de la intersección',
+                    date: formatDate(yesterday),
+                    status: 'En proceso',
+                    lat: -30.751,
+                    lng: -57.985,
+                    image: 'https://images.unsplash.com/photo-1562259924975-6a6a0eaa8a9a?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=60'
+                },
+                {
+                    id: 1244,
+                    type: 'alumbrado',
+                    title: 'Lámpara quemada en plaza San Martín',
+                    description: 'Poste de luz N°45 en la plaza principal con lámpara quemada',
+                    date: formatDate(yesterday),
+                    status: 'Solucionado',
+                    lat: -30.749,
+                    lng: -57.982,
+                    image: 'https://images.unsplash.com/photo-1517991104123-5d2a60d58b11?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=60'
+                },
+                {
+                    id: 1243,
+                    type: 'limpieza',
+                    title: 'Basura acumulada en calle Mitre al 1200',
+                    description: 'Bolsones de basura acumulados en la vereda frente al número 1200',
+                    date: formatDate(yesterday),
+                    status: 'Iniciado',
+                    lat: -30.753,
+                    lng: -57.981,
+                    image: 'https://images.unsplash.com/photo-1604186838347-9faaf0b83be5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=60'
+                },
+                {
+                    id: 1242,
+                    type: 'semaforo',
+                    title: 'Semáforo no funciona en Av. Libertad y Sarmiento',
+                    description: 'Semáforo para peatones no enciende la luz verde',
+                    date: formatDate(new Date('2023-06-13')),
+                    status: 'En proceso',
+                    lat: -30.748,
+                    lng: -57.986,
+                    image: 'https://images.unsplash.com/photo-1581092921461-39b2f2c8a452?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=60'
+                },
+                {
+                    id: 1241,
+                    type: 'transito',
+                    title: 'Estacionamiento ilegal en calle Belgrano',
+                    description: 'Vehículos estacionados en doble fila obstruyendo el tránsito',
+                    date: formatDate(new Date('2023-06-12')),
+                    status: 'Iniciado',
+                    lat: -30.752,
+                    lng: -57.984,
+                    image: 'https://images.unsplash.com/photo-1564501049412-61c2a3083791?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=60'
+                }
+            ];
+            
+            filteredReports = [...allReports];
+        }
+        
+        // Format date for display
+        function formatDate(date) {
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+        
+        // Parse date for sorting
+        function parseDate(dateStr) {
+            const [day, month, year] = dateStr.split('/');
+            return new Date(year, month - 1, day);
+        }
+        
+        // Management Map
+        function initManagementMap() {
+            // Coordinates for Chajarí, Entre Ríos
+            const chajariCoords = [-30.7500, -57.9833];
+            
+            managementMap = L.map('map').setView(chajariCoords, 14);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(managementMap);
+            
+            // Initialize marker cluster group
+            markersCluster = L.markerClusterGroup();
+            managementMap.addLayer(markersCluster);
+            
+            // Add markers for all reports
+            updateMapMarkers();
+        }
+        
+        // Update markers on management map
+        function updateMapMarkers() {
+            // Clear all existing markers
+            markersCluster.clearLayers();
+            
+            // Define incident types with colors and icons
+            const incidentTypes = {
+                'bache': {color: 'red', icon: 'fa-road'},
+                'semaforo': {color: 'yellow', icon: 'fa-traffic-light'},
+                'limpieza': {color: 'green', icon: 'fa-trash'},
+                'transito': {color: 'blue', icon: 'fa-car'},
+                'alumbrado': {color: 'purple', icon: 'fa-lightbulb'},
+                'otro': {color: 'orange', icon: 'fa-exclamation-triangle'}
+            };
+            
+            // Add markers for each report
+            allReports.forEach(report => {
+                const typeInfo = incidentTypes[report.type] || incidentTypes['otro'];
+                const marker = L.marker([report.lat, report.lng], {
+                    icon: L.divIcon({
+                        className: '',
+                        html: `<div class="incident-marker bg-${typeInfo.color}-500"><i class="fas ${typeInfo.icon} text-xs"></i></div>`,
+                        iconSize: [20, 20]
+                    })
+                });
+                
+                marker.bindPopup(`
+                    <div class="font-bold">${report.title}</div>
+                    <div class="text-sm mb-1">${report.description}</div>
+                    <div class="text-xs">
+                        <span class="font-semibold">ID:</span> #${report.id}<br>
+                        <span class="font-semibold">Fecha:</span> ${report.date}<br>
+                        <span class="font-semibold">Estado:</span> ${report.status}
+                    </div>
+                    <div class="mt-2">
+                        <button onclick="openReportModal(${report.id})" class="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">
+                            Ver detalles
+                        </button>
+                    </div>
+                `);
+                
+                markersCluster.addLayer(marker);
+            });
+        }
+        
+        // User Map
+        function initUserMap() {
+            // Coordinates for Chajarí, Entre Ríos
+            const chajariCoords = [-30.7500, -57.9833];
+            
+            userMap = L.map('userMap').setView(chajariCoords, 14);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(userMap);
+            
+            // Handle map clicks
+            userMap.on('click', function(e) {
+                if (selectedLocation) {
+                    userMap.removeLayer(selectedLocation);
+                }
+                
+                selectedLocation = L.marker(e.latlng, {
+                    icon: L.divIcon({
+                        className: '',
+                        html: '<div class="incident-marker bg-red-500"><i class="fas fa-map-pin text-xs"></i></div>',
+                        iconSize: [20, 20]
+                    })
+                }).addTo(userMap);
+                
+                // Show report form
+                document.getElementById('reportForm').classList.remove('hidden');
+                document.getElementById('successMessage').classList.add('hidden');
+                
+                // Scroll to form if on mobile
+                if (window.innerWidth < 768) {
+                    document.getElementById('reportForm').scrollIntoView({behavior: 'smooth'});
+                }
+            });
+        }
+        
+        // Report form handling
+        function setupReportForm() {
+            const reportForm = document.getElementById('reportForm');
+            const incidentForm = document.getElementById('incidentForm');
+            const cancelReportBtn = document.getElementById('cancelReportBtn');
+            const successMessage = document.getElementById('successMessage');
+            const newReportBtn = document.getElementById('newReportBtn');
+            const openCameraBtn = document.getElementById('openCameraBtn');
+            const fileInput = document.getElementById('fileInput');
+            const cameraPreview = document.getElementById('cameraPreview');
+            const previewImage = document.getElementById('previewImage');
+            
+            // Cancel report
+            cancelReportBtn.addEventListener('click', function() {
+                if (selectedLocation) {
+                    userMap.removeLayer(selectedLocation);
+                    selectedLocation = null;
+                }
+                reportForm.classList.add('hidden');
+                cameraPreview.classList.add('hidden');
+                incidentForm.reset();
+            });
+            
+            // Form submission
+            incidentForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Get form values
+                const title = document.getElementById('reportTitle').value;
+                const type = document.getElementById('reportType').value;
+                const description = document.getElementById('reportDescription').value;
+                const image = previewImage.src;
+                
+                // Create new report
+                const newReport = {
+                    id: Math.floor(1000 + Math.random() * 9000),
+                    type: type,
+                    title: title,
+                    description: description,
+                    date: formatDate(new Date()),
+                    status: 'Iniciado',
+                    lat: selectedLocation.getLatLng().lat,
+                    lng: selectedLocation.getLatLng().lng,
+                    image: image.includes('data:image') ? image : ''
+                };
+                
+                // Add to reports array
+                allReports.unshift(newReport);
+                filteredReports.unshift(newReport);
+                
+                // Update UI
+                reportForm.classList.add('hidden');
+                successMessage.classList.remove('hidden');
+                document.getElementById('reportNumber').textContent = newReport.id;
+                
+                // Update management view
+                updateMapMarkers();
+                renderReportsTable();
+                updateStatistics();
+                
+                // Reset form
+                cameraPreview.classList.add('hidden');
+                incidentForm.reset();
+            });
+            
+            // New report
+            newReportBtn.addEventListener('click', function() {
+                successMessage.classList.add('hidden');
+                if (selectedLocation) {
+                    userMap.removeLayer(selectedLocation);
+                    selectedLocation = null;
+                }
+            });
+            
+            // Camera/image handling
+            openCameraBtn.addEventListener('click', function() {
+                fileInput.click();
+            });
+            
+            fileInput.addEventListener('change', function(e) {
+                if (fileInput.files && fileInput.files[0]) {
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        previewImage.src = e.target.result;
+                        cameraPreview.classList.remove('hidden');
+                    }
+                    
+                    reader.readAsDataURL(fileInput.files[0]);
+                }
+            });
+        }
+        
+        // Apply filters to reports
+        function applyFilters() {
+            const typeFilter = document.getElementById('filterType').value;
+            const statusFilter = document.getElementById('filterStatus').value;
+            const dateFilter = document.getElementById('filterDate').value;
+            
+            filteredReports = allReports.filter(report => {
+                // Type filter
+                if (typeFilter !== 'all' && report.type !== typeFilter) {
+                    return false;
+                }
+                
+                // Status filter
+                if (statusFilter !== 'all' && report.status !== statusFilter) {
+                    return false;
+                }
+                
+                // Date filter
+                if (dateFilter) {
+                    const filterDate = new Date(dateFilter);
+                    const reportDate = parseDate(report.date);
+                    
+                    if (filterDate.getDate() !== reportDate.getDate() || 
+                        filterDate.getMonth() !== reportDate.getMonth() || 
+                        filterDate.getFullYear() !== reportDate.getFullYear()) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
+            
+            currentPage = 1;
+        }
+        
+        // Render reports table with pagination
+        function renderReportsTable() {
+            const tableBody = document.getElementById('reportsTableBody');
+            tableBody.innerHTML = '';
+            
+            // Sort reports
+            filteredReports.sort((a, b) => {
+                let valueA, valueB;
+                
+                switch (sortColumn) {
+                    case 'id':
+                        valueA = a.id;
+                        valueB = b.id;
+                        break;
+                    case 'type':
+                        valueA = a.type;
+                        valueB = b.type;
+                        break;
+                    case 'date':
+                        valueA = parseDate(a.date);
+                        valueB = parseDate(b.date);
+                        break;
+                    case 'status':
+                        valueA = a.status;
+                        valueB = b.status;
+                        break;
+                    default:
+                        valueA = a[sortColumn];
+                        valueB = b[sortColumn];
+                }
+                
+                if (sortDirection === 'asc') {
+                    return valueA > valueB ? 1 : -1;
+                } else {
+                    return valueA < valueB ? 1 : -1;
+                }
+            });
+            
+            // Calculate pagination
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = Math.min(startIndex + rowsPerPage, filteredReports.length);
+            totalPages = Math.ceil(filteredReports.length / rowsPerPage);
+            
+            // Update pagination info
+            document.getElementById('paginationInfo').innerHTML = `
+                Mostrando <span class="font-medium">${startIndex + 1}</span> a 
+                <span class="font-medium">${endIndex}</span> de 
+                <span class="font-medium">${filteredReports.length}</span> resultados
+            `;
+            
+            // Update page numbers
+            const pageNumbersContainer = document.getElementById('pageNumbers');
+            pageNumbersContainer.innerHTML = '';
+            
+            const maxPagesToShow = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+            let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+            
+            if (endPage - startPage + 1 < maxPagesToShow) {
+                startPage = Math.max(1, endPage - maxPagesToShow + 1);
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.className = `relative inline-flex items-center px-4 py-2 border text-sm font-medium ${i === currentPage ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}`;
+                pageBtn.textContent = i;
+                pageBtn.addEventListener('click', () => {
+                    currentPage = i;
+                    renderReportsTable();
+                });
+                pageNumbersContainer.appendChild(pageBtn);
+            }
+            
+            // Update pagination button states
+            document.getElementById('prevPage').disabled = currentPage === 1;
+            document.getElementById('nextPage').disabled = currentPage === totalPages;
+            document.getElementById('firstPage').disabled = currentPage === 1;
+            document.getElementById('lastPage').disabled = currentPage === totalPages;
+            document.getElementById('prevPageMobile').disabled = currentPage === 1;
+            document.getElementById('nextPageMobile').disabled = currentPage === totalPages;
+            
+            // Add rows for current page
+            for (let i = startIndex; i < endIndex; i++) {
+                const report = filteredReports[i];
+                const row = document.createElement('tr');
+                
+                // Define type colors and labels
+                const typeInfo = {
+                    'bache': {color: 'red', label: 'Bache'},
+                    'semaforo': {color: 'yellow', label: 'Semáforo'},
+                    'limpieza': {color: 'green', label: 'Limpieza'},
+                    'transito': {color: 'blue', label: 'Tránsito'},
+                    'alumbrado': {color: 'purple', label: 'Alumbrado'},
+                    'otro': {color: 'orange', label: 'Otro'}
+                };
+                
+                // Define status colors
+                const statusInfo = {
+                    'Iniciado': 'bg-blue-100 text-blue-800',
+                    'En proceso': 'bg-yellow-100 text-yellow-800',
+                    'Solucionado': 'bg-green-100 text-green-800'
+                };
+                
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">#${report.id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-${typeInfo[report.type].color}-100 text-${typeInfo[report.type].color}-800">
+                            ${typeInfo[report.type].label}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">${report.title}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${report.date}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="status-badge ${statusInfo[report.status]}">
+                            ${report.status}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <button onclick="openReportModal(${report.id})" class="text-blue-600 hover:text-blue-900 mr-2">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        ${report.status !== 'Solucionado' ? `
+                        <button onclick="updateReportStatus(${report.id}, 'Solucionado')" class="text-green-600 hover:text-green-900">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        ` : ''}
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            }
+        }
+        
+        // Update statistics
+        function updateStatistics() {
+            const today = new Date();
+            const todayStr = formatDate(today);
+            const thisMonth = today.getMonth() + 1;
+            const thisYear = today.getFullYear();
+            
+            // Calculate stats
+            const todayReportsCount = allReports.filter(r => r.date === todayStr).length;
+            const monthReportsCount = allReports.filter(r => {
+                const reportDate = parseDate(r.date);
+                return reportDate.getMonth() + 1 === thisMonth && reportDate.getFullYear() === thisYear;
+            }).length;
+            
+            const solvedCount = allReports.filter(r => r.status === 'Solucionado').length;
+            const solvedPercentage = allReports.length > 0 ? Math.round((solvedCount / allReports.length) * 100) : 0;
+            
+            const urgentCount = allReports.filter(r => r.type === 'bache' || r.type === 'semaforo').length;
+            
+            // Update UI
+            document.getElementById('todayReports').textContent = todayReportsCount;
+            document.getElementById('monthReports').textContent = monthReportsCount;
+            document.getElementById('solvedPercentage').textContent = `${solvedPercentage}%`;
+            document.getElementById('urgentReports').textContent = urgentCount;
+        }
+        
+        // Open report modal
+        function openReportModal(reportId) {
+            const report = allReports.find(r => r.id === reportId);
+            if (!report) return;
+            
+            currentReportId = reportId;
+            
+            // Update modal content
+            document.getElementById('modalReportId').textContent = report.id;
+            document.getElementById('modalTitle').textContent = report.title;
+            document.getElementById('modalType').textContent = getTypeLabel(report.type);
+            document.getElementById('modalStatus').innerHTML = `
+                <span class="status-badge ${getStatusClass(report.status)}">
+                    ${report.status}
+                </span>
+            `;
+            document.getElementById('modalDate').textContent = report.date;
+            document.getElementById('modalLocation').textContent = `Lat: ${report.lat.toFixed(4)}, Lng: ${report.lng.toFixed(4)}`;
+            document.getElementById('modalDescription').textContent = report.description;
+            
+            // Update image
+            const imageContainer = document.getElementById('modalImageContainer');
+            const image = document.getElementById('modalImage');
+            
+            if (report.image) {
+                image.src = report.image;
+                imageContainer.classList.remove('hidden');
+            } else {
+                imageContainer.classList.add('hidden');
+            }
+            
+            // Update action buttons
+            const inProgressBtn = document.getElementById('markInProgressBtn');
+            const solvedBtn = document.getElementById('markSolvedBtn');
+            
+            inProgressBtn.classList.toggle('hidden', report.status === 'En proceso');
+            solvedBtn.classList.toggle('hidden', report.status === 'Solucionado');
+            
+            // Show modal
+            document.getElementById('reportModal').classList.remove('hidden');
+        }
+        
+        // Close modal
+        function closeModal() {
+            document.getElementById('reportModal').classList.add('hidden');
+        }
+        
+        // Update report status
+        function updateReportStatus(reportId, newStatus) {
+            const reportIndex = allReports.findIndex(r => r.id === reportId);
+            if (reportIndex === -1) return;
+            
+            allReports[reportIndex].status = newStatus;
+            
+            // Update filtered reports if needed
+            const filteredIndex = filteredReports.findIndex(r => r.id === reportId);
+            if (filteredIndex !== -1) {
+                filteredReports[filteredIndex].status = newStatus;
+            }
+            
+            // Update UI
+            renderReportsTable();
+            updateMapMarkers();
+            updateStatistics();
+        }
+        
+        // Helper function to get type label
+        function getTypeLabel(type) {
+            const types = {
+                'bache': 'Bache',
+                'semaforo': 'Semáforo',
+                'limpieza': 'Limpieza',
+                'transito': 'Tránsito',
+                'alumbrado': 'Alumbrado',
+                'otro': 'Otro'
+            };
+            return types[type] || type;
+        }
+        
+        // Helper function to get status class
+        function getStatusClass(status) {
+            const classes = {
+                'Iniciado': 'bg-blue-100 text-blue-800',
+                'En proceso': 'bg-yellow-100 text-yellow-800',
+                'Solucionado': 'bg-green-100 text-green-800'
+            };
+            return classes[status] || '';
+        }
+    </script>
+</body>
+</html>
