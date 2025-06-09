@@ -6,145 +6,297 @@
     <title>Sistema de Reportes Urbanos - Chajarí</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- ETIQUETAS PWA para Chajarí -->
+    <link rel="manifest" href="./manifest_chajari.json">
+    <meta name="theme-color" content="#3B82F6"> <!-- Azul Tailwind blue-500 -->
+    <link rel="apple-touch-icon" href="./icons/icon_chajari_192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Reportes CH">
+    <meta name="application-name" content="Reportes Chajarí">
+
     <style>
+        /* Estilos Generales Base */
         #map, #userMap {
-            height: 70vh;
+            height: 550px;
             width: 100%;
             z-index: 1;
         }
-        .legend {
-            background: white;
-            padding: 10px;
-            border-radius: 5px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        .crosshair-cursor { cursor: crosshair; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .status-badge {
+            padding: 2px 8px; border-radius: 12px;
+            font-size: 12px; font-weight: 600;
         }
-        .legend i {
-            width: 18px;
-            height: 18px;
-            float: left;
-            margin-right: 8px;
-            opacity: 0.7;
+
+        /* ESTILOS PARA MARCADORES INDIVIDUALES DE CHAJARÍ (FontAwesome en círculos) */
+        .incident-marker-chajari {
+            width: 28px; height: 28px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: white; border: 2px solid white;
+            box-shadow: 0 0 6px rgba(0,0,0,0.4);
         }
-        .crosshair-cursor {
-            cursor: crosshair;
-        }
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
-        }
-        .incident-marker {
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
+        .incident-marker-chajari i.fas { font-size: 14px; line-height: 1; }
+        /* Clases de color para los marcadores - DEBES DEFINIRLAS BASADO EN CHAJARI_INCIDENT_TYPES */
+        .ch-bache-bg { background-color: #ef4444; } /* Ejemplo Rojo */
+        .ch-semaforo-bg { background-color: #f59e0b; } /* Ejemplo Amarillo */
+        .ch-limpieza-bg { background-color: #10b981; } /* Ejemplo Verde */
+        .ch-transito-bg { background-color: #3b82f6; } /* Ejemplo Azul */
+        .ch-alumbrado-bg { background-color: #8b5cf6; } /* Ejemplo Púrpura */
+        .ch-otro-bg { background-color: #f97316; } /* Ejemplo Naranja */
+        .ch-default-bg { background-color: #6b7280; } /* Ejemplo Gris */
+
+
+       /* === ESTILOS PARA MARCADORES Y LEYENDA FLOTANTE (CHAJARÍ) === */
+
+        /* Marcadores Individuales en el Mapa */
+        .chajari-incident-marker { /* Clase base para el DivIcon de marcadores individuales */
+            width: 30px;  /* Tamaño del círculo del marcador */
+            height: 30px;
+            border-radius: 50%; /* Para hacerlo circular */
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            color: white; /* Color del ícono FontAwesome dentro del marcador */
+            border: 2px solid rgba(255,255,255,0.7); /* Borde blanco semitransparente */
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        .chajari-incident-marker i.fas {
+            font-size: 15px; /* Tamaño del ícono FontAwesome */
+            line-height: 1; /* Ayuda a centrar */
+        }
+
+        /* Clases de color para los fondos de los marcadores (y leyenda) */
+        .ch-bache-bg { background-color: #FF5733; }
+        .ch-semaforo-bg { background-color: #FFC300; }
+        .ch-limpieza-bg { background-color: #2ECC71; }
+        .ch-transito-bg { background-color: #3498DB; }
+        .ch-alumbrado-bg { background-color: #9B59B6; }
+        .ch-otro-bg { background-color: #F39C12; }
+        .ch-default-bg { background-color: #7f8c8d; }
+
+
+        /* Leyenda Flotante de Leaflet */
+        .info.chajari-map-legend { /* Contenedor principal de la leyenda */
+            padding: 6px 10px;
+            background: white;
+            background: rgba(255,255,255,0.9); /* Fondo blanco semitransparente */
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+            font-size: 13px;
+            line-height: 18px;
+            color: #555;
+            max-height: 250px; /* Altura máxima antes de scroll */
+            overflow-y: auto;  /* Scroll si hay muchos ítems */
+        }
+        .info.chajari-map-legend h4 {
+            margin: 0 0 5px;
+            color: #333;
+            font-size: 14px;
             font-weight: bold;
-            font-size: 12px;
         }
-        .status-badge {
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
+        .info.chajari-map-legend ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
         }
-        .marker-cluster {
-            background-clip: padding-box;
-            border-radius: 20px;
+        .info.chajari-map-legend li {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
         }
-        .marker-cluster div {
-            width: 30px;
-            height: 30px;
-            margin-left: 5px;
-            margin-top: 5px;
-            text-align: center;
-            border-radius: 15px;
-            font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
+        .info.chajari-map-legend .legend-icon-display { /* El círculo de color en la leyenda */
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            margin-right: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: white; /* Color del icono FA en la leyenda */
+            font-size: 9px; /* Tamaño del icono FA en la leyenda */
+        }
+        .info.chajari-map-legend .legend-icon-display i.fas {
+            line-height: 1;
+        }
+        /* === FIN ESTILOS MARCADORES Y LEYENDA === */
+
+        /* Estilos para los CLUSTERS */
+        /* Estilos para los CLUSTERS */
+        .marker-cluster { /* El div principal creado por L.divIcon */
+            background-clip: padding-box !important;
+            border-radius: 50% !important; /* Hacerlo perfectamente circular */
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-weight: bold;
+            font-size: 12px; /* Tamaño del número */
+            color: white;    /* Color del número */
+            /* box-shadow: 0 0 5px rgba(0,0,0,0.5); */ /* Sombra opcional */
         }
-        .marker-cluster span {
-            line-height: 30px;
+        /* Ya no se necesitan .marker-cluster div o .marker-cluster span si el HTML es solo <span> */
+
+        /* Colores de los clusters (Estos se aplican a la clase del div principal del cluster) */
+        .marker-cluster.marker-cluster-custom-small { background-color: rgba(110, 204, 57, 0.8); } /* Verde */
+        .marker-cluster.marker-cluster-custom-medium { background-color: rgba(240, 194, 12, 0.8); }/* Amarillo */
+        .marker-cluster.marker-cluster-custom-large { background-color: rgba(253, 156, 115, 0.8); } /* Naranja-Rojo */
+
+        
+
+        /* === ESTILOS PARA BOTÓN DE TEMA === */
+        #themeToggleBtn {
+            background-color: transparent; border-radius: 9999px;
+            width: 36px; height: 36px; display: flex; align-items: center;
+            justify-content: center; cursor: pointer; transition: background-color 0.2s ease-in-out;
         }
+        #themeToggleBtn:hover { background-color: rgba(0, 0, 0, 0.08); }
+        #themeToggleBtn #themeIconEl { color: #4B5563; transition: color 0.2s ease-in-out; }
+        body.dark-mode #themeToggleBtn { background-color: transparent; }
+        body.dark-mode #themeToggleBtn:hover { background-color: rgba(255, 255, 255, 0.1); }
+        body.dark-mode #themeToggleBtn #themeIconEl.fa-sun { color: #facc15; }
+        body.dark-mode #themeToggleBtn #themeIconEl.fa-moon { color: #9ca3af; }
+        /* === FIN ESTILOS BOTÓN DE TEMA === */
+
+
+        /* === ESTILOS PARA TEMA OSCURO GENERALES === */
+        body.dark-mode {
+            background-color: #111827; color: #d1d5db;
+        }
+        body.dark-mode header[class*="bg-blue-"] {
+           background-color: #1e3a8a !important; color: #e0e7ff !important;
+        }
+        body.dark-mode header[class*="bg-blue-"] p { color: #adc9ff !important; }
+        body.dark-mode .bg-white, body.dark-mode .bg-gray-50, body.dark-mode .bg-gray-100 {
+            background-color: #1f2937; border-color: #374151 !important;
+        }
+        body.dark-mode .chajari-legend-container, body.dark-mode .info.chajari-legend-control {
+            background-color: #1f2937; box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        body.dark-mode .chajari-legend-container h4, body.dark-mode .chajari-legend-container span,
+        body.dark-mode .info.chajari-legend-control h4, body.dark-mode .info.chajari-legend-control li {
+            color: #d1d5db;
+        }
+        body.dark-mode .tab-button.text-gray-500 { color: #9ca3af; }
+        body.dark-mode .tab-button.hover\:text-gray-700:hover { color: #d1d5db; }
+        body.dark-mode .tab-button.bg-blue-50 {
+            background-color: #1e40af; border-color: #3b82f6; color: #eff6ff;          
+        }
+        body.dark-mode .flex.border-b { border-color: #374151 !important; }
+        body.dark-mode h2.text-xl { color: #e5e7eb; }
+        body.dark-mode .text-gray-800 { color: #e5e7eb; }
+        body.dark-mode .text-gray-700, body.dark-mode label.text-gray-700, body.dark-mode p.text-gray-700 { color: #d1d5db; }
+        body.dark-mode .text-gray-600, body.dark-mode span.text-gray-600 { color: #9ca3af; }
+        body.dark-mode .text-gray-500, body.dark-mode th.text-gray-500 { color: #9ca3af; }
+        body.dark-mode .text-blue-800 { color: #93c5fd; } body.dark-mode .text-blue-600 { color: #bfdbfe; }
+        body.dark-mode .text-green-800 {color: #86efac;} body.dark-mode .text-green-600 {color: #bbf7d0;}
+        body.dark-mode .text-yellow-800 {color: #fde047;} body.dark-mode .text-yellow-600 {color: #fef08a;}
+        body.dark-mode .text-red-800 {color: #fca5a5;} body.dark-mode .text-red-600 {color: #fecaca;}
+        body.dark-mode .border-gray-200, body.dark-mode .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: #374151 !important; }
+        body.dark-mode .shadow-md { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.4), 0 2px 4px -1px rgba(0,0,0,0.3); }
+        body.dark-mode .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.4), 0 4px 6px -2px rgba(0,0,0,0.3); }
+        body.dark-mode input[type="text"], body.dark-mode input[type="date"], body.dark-mode textarea, body.dark-mode select {
+            background-color: #374151; color: #f3f4f6; border-color: #4b5563;
+        }
+        body.dark-mode input::placeholder, body.dark-mode textarea::placeholder { color: #6b7280; }
+        body.dark-mode select option { background-color: #374151; color: #f3f4f6; }
+        body.dark-mode .bg-blue-600 { background-color: #2563eb; }
+        body.dark-mode .hover\:bg-blue-700:hover { background-color: #1d4ed8; }
+        body.dark-mode .bg-gray-200 { background-color: #4b5563; color: #e5e7eb;}
+        body.dark-mode .hover\:bg-gray-300:hover { background-color: #374151; }
+        body.dark-mode .bg-blue-100 { background-color: #1e3a8a; }
+        body.dark-mode .text-blue-700 { color: #bfdbfe; }
+        body.dark-mode .hover\:bg-blue-200:hover { background-color: #1c3274; }
+        body.dark-mode .bg-green-100 { background-color: #065f46; } /* Ajustado para más contraste */
+        body.dark-mode .bg-yellow-100 { background-color: #7c2d12; }/* Ajustado para más contraste */
+        body.dark-mode .bg-red-100 { background-color: #7f1d1d; }
+        body.dark-mode .border.rounded.text-gray-700.hover\:bg-gray-100 { border-color: #4b5563; color: #d1d5db; }
+        body.dark-mode .border.rounded.text-gray-700.hover\:bg-gray-100:hover { background-color: #4b5563; }
+        body.dark-mode table thead.bg-gray-50 { background-color: #374151; }
+        body.dark-mode table tbody { background-color: #1f2937; }
+        body.dark-mode table tbody tr:hover { background-color: #374151; }
+        body.dark-mode table tbody tr.bg-blue-200 { background-color: #2563eb !important; color: white; }
+        body.dark-mode .bg-gray-50.px-6.py-3 { background-color: #1f2937 !important; border-color: #374151 !important; }
+        body.dark-mode nav button.bg-white { background-color: #374151; border-color: #4b5563; color: #9ca3af; }
+        body.dark-mode nav button.hover\:bg-gray-50:hover { background-color: #4b5563; }
+        body.dark-mode nav button.bg-blue-50 { background-color: #2563eb; border-color: #1d4ed8; color: #eff6ff; }
+        body.dark-mode #reportModalChajari .bg-white { background-color: #1f2937; }
+        body.dark-mode #reportModalChajari .border-b, body.dark-mode #reportModalChajari .border-t { border-color: #374151; }
+        body.dark-mode #closeModalChajari.text-gray-500 { color: #9ca3af; }
+        body.dark-mode #closeModalChajari.hover\:text-gray-700:hover { color: #d1d5db; }
+        body.dark-mode #markInProgressBtnChajari.bg-yellow-500 { background-color: #ca8a04; } /* yellow-600 */
+        body.dark-mode #markInProgressBtnChajari.hover\:bg-yellow-600:hover { background-color: #a16207; } /* yellow-700 */
+        body.dark-mode #markSolvedBtnChajari.bg-green-500 { background-color: #16a34a; } /* green-600 */
+        body.dark-mode #markSolvedBtnChajari.hover\:bg-green-600:hover { background-color: #15803d; } /* green-700 */
+        body.dark-mode .instructions-panel { background-color: #1e3a8a !important; color: #e0e7ff !important; }
+        body.dark-mode .instructions-panel h3 { color: #93c5fd !important; }
+        body.dark-mode .instructions-panel ol { color: #e0e7ff !important; }
+        /* === FIN ESTILOS DARK MODE === */
     </style>
 </head>
-<body class="bg-gray-100">
+
+<body class="bg-gray-100"> <!-- La clase dark-mode se añadirá/quitará con JS -->
     <div class="container mx-auto px-4 py-6">
-        <header class="bg-blue-600 text-white rounded-lg shadow-md p-6 mb-6">
+        <!-- Header de Chajarí con botón de tema -->
+        <header class="bg-blue-600 text-white p-4 shadow-md rounded-lg mb-6"> <!-- Clases base de tu header de Chajarí -->
             <div class="flex justify-between items-center">
-                <div>
-                    <h1 class="text-3xl font-bold">Sistema de Reportes Urbanos</h1>
-                    <p class="mt-2">Municipalidad de Chajarí, Entre Ríos</p>
+                <div class="flex items-center">
+                    <img src="img/escudo_chajari.png" alt="Escudo Municipalidad de Chajarí" class="h-12 mr-3">
+                    <div>
+                        <h1 class="text-2xl font-bold">Sistema de Reportes Urbanos</h1>
+                        <p class="text-sm">Municipalidad de Chajarí, Entre Ríos</p>
+                    </div>
                 </div>
-                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Escudo_de_Chajar%C3%AD.svg/1200px-Escudo_de_Chajar%C3%AD.svg.png" alt="Escudo de Chajarí" class="h-16">
+                <div>
+                    <button id="themeToggleBtn" title="Cambiar tema" class="p-0 focus:outline-none">
+                        <i id="themeIconEl" class="fas fa-moon text-xl"></i>
+                    </button>
+                </div>
             </div>
         </header>
 
+        <!-- Contenedor de Pestañas -->
         <div class="bg-white rounded-lg shadow-md mb-6">
-            <div class="flex border-b">
-                <button id="managementTab" class="tab-button px-6 py-3 font-medium text-gray-700 border-b-2 border-blue-500 bg-blue-50">Gestión de Reclamos</button>
-                <button id="userTab" class="tab-button px-6 py-3 font-medium text-gray-500 hover:text-gray-700">Reportar Incidente</button>
+            <div class="flex border-b px-2"> <!-- Padding reducido para que el botón de tema no quede tan lejos si estuviera aquí -->
+                <button id="managementTab" class="tab-button px-4 py-3 font-medium text-gray-700 border-b-2 border-blue-500 bg-blue-50">Gestión de Reclamos</button>
+                <button id="userTab" class="tab-button px-4 py-3 font-medium text-gray-500 hover:text-gray-700">Reportar Incidente</button>
+                <!-- El botón de tema se movió al header principal para mejor alineación global -->
             </div>
 
-            <!-- Management Dashboard -->
+            <!-- Pestaña: Management Dashboard (Gestión de Reclamos) -->
             <div id="managementContent" class="tab-content active p-6">
                 <div class="flex flex-col lg:flex-row gap-6">
-                    <div class="lg:w-2/3">
+                    <div class="lg:w-2/3"> <!-- Columna Izquierda - Mapa -->
                         <h2 class="text-xl font-semibold mb-4">Mapa de Incidentes</h2>
-                        <div id="map"></div>
-                        <div class="legend mt-4 p-4 bg-gray-50 rounded-lg">
-                            <h3 class="font-semibold mb-2">Leyenda</h3>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div class="flex items-center">
-                                    <div class="incident-marker bg-red-500 mr-2"><i class="fas fa-road text-xs"></i></div>
-                                    <span>Baches</span>
-                                </div>
-                                <div class="flex items-center">
-                                    <div class="incident-marker bg-yellow-500 mr-2"><i class="fas fa-traffic-light text-xs"></i></div>
-                                    <span>Semáforos</span>
-                                </div>
-                                <div class="flex items-center">
-                                    <div class="incident-marker bg-green-500 mr-2"><i class="fas fa-trash text-xs"></i></div>
-                                    <span>Limpieza</span>
-                                </div>
-                                <div class="flex items-center">
-                                    <div class="incident-marker bg-blue-500 mr-2"><i class="fas fa-car text-xs"></i></div>
-                                    <span>Tránsito</span>
-                                </div>
-                                <div class="flex items-center">
-                                    <div class="incident-marker bg-purple-500 mr-2"><i class="fas fa-lightbulb text-xs"></i></div>
-                                    <span>Alumbrado</span>
-                                </div>
-                                <div class="flex items-center">
-                                    <div class="incident-marker bg-orange-500 mr-2"><i class="fas fa-exclamation-triangle text-xs"></i></div>
-                                    <span>Otros</span>
-                                </div>
-                            </div>
-                        </div>
+                        <div id="map"></div> <!-- Mapa de Gestión -->
+                        <!-- NOTA: La leyenda HTML original de Chajarí se elimina si usamos la leyenda flotante de Leaflet -->
+                        <!-- Si tenías aquí tu <div class="chajari-legend-container ...">, coméntalo o bórralo -->
                     </div>
-                    
-                    <div class="lg:w-1/3">
+
+                    <div class="lg:w-1/3"> <!-- Columna Derecha - Estadísticas y Filtros -->
                         <div class="mb-6">
                             <h2 class="text-xl font-semibold mb-4">Estadísticas</h2>
                             <div class="grid grid-cols-2 gap-4">
+                                <!-- IDs adaptados con sufijo Chajari -->
                                 <div class="bg-blue-100 p-4 rounded-lg">
-                                    <div class="text-blue-800 font-bold text-2xl" id="todayReports">0</div>
+                                    <div class="text-blue-800 font-bold text-2xl" id="todayReportsChajari">0</div>
                                     <div class="text-blue-600">Reportes hoy</div>
                                 </div>
                                 <div class="bg-green-100 p-4 rounded-lg">
-                                    <div class="text-green-800 font-bold text-2xl" id="monthReports">0</div>
+                                    <div class="text-green-800 font-bold text-2xl" id="monthReportsChajari">0</div>
                                     <div class="text-green-600">Este mes</div>
                                 </div>
                                 <div class="bg-yellow-100 p-4 rounded-lg">
-                                    <div class="text-yellow-800 font-bold text-2xl" id="solvedPercentage">0%</div>
+                                    <div class="text-yellow-800 font-bold text-2xl" id="solvedPercentageChajari">0%</div>
                                     <div class="text-yellow-600">Resueltos</div>
                                 </div>
                                 <div class="bg-red-100 p-4 rounded-lg">
-                                    <div class="text-red-800 font-bold text-2xl" id="urgentReports">0</div>
-                                    <div class="text-red-600">Urgentes</div>
+                                    <div class="text-red-800 font-bold text-2xl" id="urgentReportsChajari">0</div>
+                                    <div class="text-red-600">Urgentes</div> <!-- O "Pendientes Críticos" -->
                                 </div>
                             </div>
                         </div>
@@ -153,42 +305,43 @@
                             <h2 class="text-xl font-semibold mb-4">Filtros</h2>
                             <div class="bg-gray-50 p-4 rounded-lg">
                                 <div class="mb-3">
-                                    <label class="block text-gray-700 mb-1">Tipo de incidente</label>
-                                    <select id="filterType" class="w-full p-2 border rounded">
-                                        <option value="all">Todos</option>
-                                        <option value="bache">Baches</option>
+                                    <label for="filtroTipoChajari" class="block text-gray-700 mb-1">Tipo de Incidente</label>
+                                    <select id="filtroTipoChajari" class="w-full p-2 border rounded">
+                                        <option value="Todos" selected>Todos</option>
+                                        <option value="bache">Baches</option> <!-- Usar values en minúscula para consistencia con CHAJARI_INCIDENT_TYPES -->
                                         <option value="semaforo">Semáforos</option>
                                         <option value="limpieza">Limpieza</option>
                                         <option value="transito">Tránsito</option>
                                         <option value="alumbrado">Alumbrado</option>
+                                        <option value="otro">Otros</option>
                                     </select>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="block text-gray-700 mb-1">Estado</label>
-                                    <select id="filterStatus" class="w-full p-2 border rounded">
-                                        <option value="all">Todos</option>
-                                        <option value="Iniciado">Iniciado</option>
+                                    <label for="filterStatusChajari" class="block text-gray-700 mb-1">Estado</label>
+                                    <select id="filterStatusChajari" class="w-full p-2 border rounded">
+                                        <option value="Todos" selected>Todos</option>
+                                        <option value="Iniciado">Nuevo</option>
                                         <option value="En proceso">En proceso</option>
                                         <option value="Solucionado">Solucionado</option>
                                     </select>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="block text-gray-700 mb-1">Fecha</label>
-                                    <input type="date" id="filterDate" class="w-full p-2 border rounded">
+                                    <label for="filterDateChajari" class="block text-gray-700 mb-1">Fecha</label>
+                                    <input type="date" id="filterDateChajari" class="w-full p-2 border rounded">
                                 </div>
-                                <button id="applyFiltersBtn" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Aplicar Filtros</button>
-                                <button id="resetFiltersBtn" class="w-full mt-2 bg-gray-200 text-gray-700 py-2 rounded hover:bg-gray-300">Restablecer</button>
+                                <button id="applyFiltersBtnChajari" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Aplicar Filtros</button>
+                                <button id="resetFiltersBtnChajari" class="w-full mt-2 bg-gray-200 text-gray-700 py-2 rounded hover:bg-gray-300">Restablecer</button>
                             </div>
                         </div>
-                    </div>
-                </div>
-                
+                    </div> <!-- FIN Columna Derecha -->
+                </div> <!-- FIN flex -->
+
                 <div class="mt-8">
                     <div class="flex justify-between items-center mb-4">
                         <h2 class="text-xl font-semibold">Reportes</h2>
                         <div class="flex items-center">
                             <span class="text-sm text-gray-600 mr-2">Mostrar:</span>
-                            <select id="rowsPerPage" class="p-1 border rounded text-sm">
+                            <select id="rowsPerPageChajari" class="p-1 border rounded text-sm">
                                 <option value="5">5</option>
                                 <option value="10" selected>10</option>
                                 <option value="20">20</option>
@@ -200,455 +353,977 @@
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sortable" data-column="id">
-                                            ID <i class="fas fa-sort ml-1"></i>
-                                        </th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sortable" data-column="type">
-                                            Tipo <i class="fas fa-sort ml-1"></i>
-                                        </th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descripción</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sortable" data-column="date">
-                                            Fecha <i class="fas fa-sort ml-1"></i>
-                                        </th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sortable" data-column="status">
-                                            Estado <i class="fas fa-sort ml-1"></i>
-                                        </th>
+                                    <tr> <!-- ¡¡¡ADAPTA data-column A LOS CAMPOS DE TU OBJETO report DE CHAJARÍ!!! -->
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sortable" data-column="id">ID <i class="fas fa-sort ml-1"></i></th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sortable" data-column="tipoIncidente">Tipo <i class="fas fa-sort ml-1"></i></th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sortable" data-column="titulo">Título/Ubic. <i class="fas fa-sort ml-1"></i></th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sortable" data-column="fechaCreacion">Fecha <i class="fas fa-sort ml-1"></i></th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sortable" data-column="estado">Estado <i class="fas fa-sort ml-1"></i></th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer sortable" data-column="fechaUltimaModificacion">Últ. Modif. <i class="fas fa-sort ml-1"></i></th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                                     </tr>
                                 </thead>
-                                <tbody id="reportsTableBody" class="bg-white divide-y divide-gray-200">
-                                    <!-- Reports will be loaded here dynamically -->
+                                <tbody id="reportsTableBodyChajari" class="bg-white divide-y divide-gray-200">
+                                    <!-- Filas de reportes aquí -->
                                 </tbody>
                             </table>
                         </div>
                         <div class="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200">
                             <div class="flex-1 flex justify-between sm:hidden">
-                                <button id="prevPageMobile" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                                    Anterior
-                                </button>
-                                <button id="nextPageMobile" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                                    Siguiente
-                                </button>
+                                <button id="prevPageMobileChajari" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Anterior</button>
+                                <button id="nextPageMobileChajari" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Siguiente</button>
                             </div>
                             <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                                <div>
-                                    <p class="text-sm text-gray-700" id="paginationInfo">
-                                        Mostrando <span class="font-medium">1</span> a <span class="font-medium">10</span> de <span class="font-medium">20</span> resultados
-                                    </p>
-                                </div>
+                                <div><p class="text-sm text-gray-700" id="paginationInfoChajari">Mostrando 0 a 0 de 0</p></div>
                                 <div>
                                     <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                                        <button id="firstPage" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                                            <span class="sr-only">Primera</span>
-                                            <i class="fas fa-angle-double-left"></i>
-                                        </button>
-                                        <button id="prevPage" class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                                            <span class="sr-only">Anterior</span>
-                                            <i class="fas fa-angle-left"></i>
-                                        </button>
-                                        <div id="pageNumbers" class="flex">
-                                            <!-- Page numbers will be added here -->
-                                        </div>
-                                        <button id="nextPage" class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                                            <span class="sr-only">Siguiente</span>
-                                            <i class="fas fa-angle-right"></i>
-                                        </button>
-                                        <button id="lastPage" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                                            <span class="sr-only">Última</span>
-                                            <i class="fas fa-angle-double-right"></i>
-                                        </button>
+                                        <button id="firstPageChajari" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"><i class="fas fa-angle-double-left"></i></button>
+                                        <button id="prevPageChajari" class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"><i class="fas fa-angle-left"></i></button>
+                                        <div id="pageNumbersChajari" class="flex"></div>
+                                        <button id="nextPageChajari" class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"><i class="fas fa-angle-right"></i></button>
+                                        <button id="lastPageChajari" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"><i class="fas fa-angle-double-right"></i></button>
                                     </nav>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            </div> <!-- FIN Management Dashboard -->
 
-            <!-- User Reporting App -->
+            <!-- Pestaña: User Reporting App (Reportar Incidente) -->
             <div id="userContent" class="tab-content p-6">
                 <div class="flex flex-col lg:flex-row gap-6">
                     <div class="lg:w-2/3">
-                        <h2 class="text-xl font-semibold mb-4">Reportar un incidente</h2>
-                        <p class="mb-4 text-gray-600">Seleccione la ubicación exacta del incidente en el mapa haciendo clic en el lugar correspondiente.</p>
-                        <div id="userMap" class="crosshair-cursor"></div>
+                        <h2 class="text-xl font-semibold mb-4">Reportar un Incidente</h2>
+                        <p class="mb-4 text-gray-600">Seleccione la ubicación exacta del incidente en el mapa haciendo clic.</p>
+                        <div id="userMap" class="crosshair-cursor"></div> <!-- Mapa de Usuario -->
                     </div>
-                    
+
                     <div class="lg:w-1/3">
-                        <div class="bg-blue-50 p-4 rounded-lg mb-6">
+                        <div class="instructions-panel bg-blue-50 p-4 rounded-lg mb-6">
                             <h3 class="font-semibold text-blue-800 mb-2">Instrucciones</h3>
                             <ol class="list-decimal list-inside text-blue-700 space-y-2">
-                                <li>Busque la ubicación en el mapa</li>
-                                <li>Haga clic exactamente donde ocurre el problema</li>
-                                <li>Complete el formulario que aparecerá</li>
-                                <li>Adjunte una foto si es posible</li>
-                                <li>Enviar el reporte</li>
+                                <li>Busque la ubicación en el mapa.</li>
+                                <li>Haga clic donde ocurre el problema.</li>
+                                <li>Complete el formulario que aparecerá.</li>
+                                <li>Adjunte una foto si es posible.</li>
+                                <li>Enviar el reporte.</li>
                             </ol>
                         </div>
                         
-                        <div id="reportForm" class="hidden bg-white p-4 rounded-lg shadow">
-                            <h3 class="font-semibold text-lg mb-3">Detalles del reporte</h3>
-                            <form id="incidentForm">
+                        <div id="reportFormContainerChajari" class="hidden bg-white p-4 rounded-lg shadow"> 
+                            <h3 class="font-semibold text-lg mb-3">Detalles del Reporte</h3>
+                            <form id="incidentFormChajari">
                                 <div class="mb-3">
-                                    <label class="block text-gray-700 mb-1">Título</label>
-                                    <input type="text" id="reportTitle" class="w-full p-2 border rounded" placeholder="Ej: Bache grande en la esquina" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="block text-gray-700 mb-1">Tipo de incidente</label>
-                                    <select id="reportType" class="w-full p-2 border rounded" required>
-                                        <option value="">Seleccione...</option>
-                                        <option value="bache">Bache</option>
-                                        <option value="semaforo">Semáforo dañado</option>
-                                        <option value="limpieza">Problema de limpieza</option>
-                                        <option value="transito">Problema de tránsito</option>
-                                        <option value="alumbrado">Alumbrado público</option>
+                                    <label for="tipoIncidenteFormChajari" class="block text-gray-700 mb-1">Tipo de Incidente</label>
+                                    <select id="tipoIncidenteFormChajari" name="tipoIncidenteForm" class="w-full p-2 border rounded" required>
+                                        <option value="" disabled selected>Seleccione un tipo...</option>
+                                        <option value="bache">Bache</option> <!-- Values en minúscula para consistencia -->
+                                        <option value="semaforo">Semáforo</option>
+                                        <option value="limpieza">Limpieza</option>
+                                        <option value="transito">Tránsito</option>
+                                        <option value="alumbrado">Alumbrado</option>
                                         <option value="otro">Otro</option>
                                     </select>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="block text-gray-700 mb-1">Descripción</label>
-                                    <textarea id="reportDescription" class="w-full p-2 border rounded" rows="3" placeholder="Describa el problema con detalle..." required></textarea>
+                                    <label for="reportTitleChajari" class="block text-gray-700 mb-1">Título / Ubicación Breve</label>
+                                    <input type="text" id="reportTitleChajari" name="reportTitle" class="w-full p-2 border rounded" placeholder="Ej: Bache grande frente a la escuela" required>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="block text-gray-700 mb-1">Adjuntar foto</label>
+                                    <label for="reportDescriptionChajari" class="block text-gray-700 mb-1">Descripción Detallada (Opcional)</label>
+                                    <textarea id="reportDescriptionChajari" name="reportDescription" class="w-full p-2 border rounded" rows="3" placeholder="Añada más detalles si es necesario..."></textarea> <!-- No 'required' si es opcional -->
+                                </div>
+                                <div class="mb-3">
+                                    <label class="block text-gray-700 mb-1">Adjuntar foto (opcional)</label>
                                     <div class="border-2 border-dashed border-gray-300 rounded p-4 text-center">
-                                        <div id="cameraPreview" class="hidden mb-2">
-                                            <img id="previewImage" src="#" alt="Preview" class="max-w-full max-h-40 mx-auto">
+                                        <div id="cameraPreviewChajari" class="hidden mb-2">
+                                            <img id="previewImageChajari" src="#" alt="Preview" class="max-w-full max-h-40 mx-auto">
                                         </div>
-                                        <button type="button" id="openCameraBtn" class="bg-blue-100 text-blue-700 px-4 py-2 rounded hover:bg-blue-200">
-                                            <i class="fas fa-camera mr-2"></i>Tomar foto
+                                        <button type="button" id="openCameraBtnChajari" class="bg-blue-100 text-blue-700 px-4 py-2 rounded hover:bg-blue-200">
+                                            <i class="fas fa-camera mr-2"></i>Tomar/Adjuntar foto
                                         </button>
-                                        <input type="file" id="fileInput" accept="image/*" capture="environment" class="hidden">
+                                        <input type="file" id="fileInputChajari" accept="image/*" class="hidden">
                                     </div>
                                 </div>
                                 <div class="flex justify-end gap-2">
-                                    <button type="button" id="cancelReportBtn" class="px-4 py-2 border rounded text-gray-700 hover:bg-gray-100">Cancelar</button>
-                                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Enviar reporte</button>
+                                    <button type="button" id="cancelReportBtnChajari" class="px-4 py-2 border rounded text-gray-700 hover:bg-gray-100">Cancelar</button>
+                                    <button type="submit" id="submitReportBtnChajari" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Enviar reporte</button>
                                 </div>
                             </form>
                         </div>
                         
-                        <div id="successMessage" class="hidden bg-green-50 p-4 rounded-lg text-green-700">
+                        <div id="successMessageChajari" class="hidden bg-green-50 p-4 rounded-lg text-green-700 mt-4">
                             <div class="flex items-center">
                                 <i class="fas fa-check-circle text-green-500 text-2xl mr-2"></i>
                                 <div>
                                     <h3 class="font-semibold">¡Reporte enviado con éxito!</h3>
-                                    <p class="text-sm">Número de seguimiento: #<span id="reportNumber">1246</span></p>
+                                    <p class="text-sm">Número de seguimiento: #<span id="reportNumberChajari"></span></p> 
                                 </div>
                             </div>
-                            <button id="newReportBtn" class="mt-3 w-full bg-green-600 text-white py-2 rounded hover:bg-green-700">Hacer otro reporte</button>
+                            <button id="newReportBtnChajari" class="mt-3 w-full bg-green-600 text-white py-2 rounded hover:bg-green-700">Hacer otro reporte</button>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
+            </div> <!-- FIN User Reporting App -->
+        </div> <!-- FIN Contenedor de Pestañas -->
+    </div> <!-- FIN Contenedor Principal -->
 
-    <!-- Modal for report details -->
-    <div id="reportModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <!-- Modal for report details (Adaptado para Chajarí) -->
+    <div id="reportModalChajari" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
         <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-2/3 lg:w-1/2 shadow-lg rounded-md bg-white">
-            <div class="flex justify-between items-center border-b pb-3">
-                <h3 class="text-xl font-semibold" id="modalTitle">Detalles del Reporte #<span id="modalReportId"></span></h3>
-                <button id="closeModal" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times"></i>
-                </button>
+            <div id="modalHeaderChajari" class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-xl font-semibold" id="modalTitleChajari">Detalles del Reporte</h3>
+                <button id="closeModalChajari" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
             </div>
             <div class="py-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                        <h4 class="font-medium text-gray-700">Tipo:</h4>
-                        <p id="modalType" class="mt-1"></p>
+                        <h4 class="font-medium text-gray-700">ID Reporte:</h4>
+                        <p id="modalReportIdActualChajari" class="mt-1 text-sm"></p>
+                    </div>
+                    <div>
+                        <h4 class="font-medium text-gray-700">Tipo de Incidente:</h4>
+                        <p id="modalTypeChajari" class="mt-1 text-sm"></p>
+                    </div>
+                    <div class="md:col-span-2">
+                        <h4 class="font-medium text-gray-700">Título/Ubic. Breve:</h4>
+                        <p id="modalReportTitleChajari" class="mt-1 text-sm"></p>
                     </div>
                     <div>
                         <h4 class="font-medium text-gray-700">Estado:</h4>
-                        <p id="modalStatus" class="mt-1"></p>
+                        <p id="modalStatusChajari" class="mt-1 text-sm"></p>
                     </div>
                     <div>
-                        <h4 class="font-medium text-gray-700">Fecha:</h4>
-                        <p id="modalDate" class="mt-1"></p>
+                        <h4 class="font-medium text-gray-700">Fecha Creación:</h4>
+                        <p id="modalDateChajari" class="mt-1 text-sm"></p>
                     </div>
                     <div>
-                        <h4 class="font-medium text-gray-700">Ubicación:</h4>
-                        <p id="modalLocation" class="mt-1"></p>
+                        <h4 class="font-medium text-gray-700">Últ. Modificación:</h4>
+                        <p id="modalDateModifiedChajari" class="mt-1 text-sm"></p>
+                    </div>
+                    <div class="md:col-span-2">
+                        <h4 class="font-medium text-gray-700">Ubicación (Lat, Lng):</h4>
+                        <p id="modalLocationChajari" class="mt-1 text-sm"></p>
                     </div>
                 </div>
                 <div class="mt-4">
-                    <h4 class="font-medium text-gray-700">Descripción:</h4>
-                    <p id="modalDescription" class="mt-1"></p>
+                    <h4 class="font-medium text-gray-700">Descripción Detallada:</h4>
+                    <p id="modalDescriptionChajari" class="mt-1 text-sm"></p>
                 </div>
                 <div class="mt-4">
                     <h4 class="font-medium text-gray-700">Imagen:</h4>
-                    <div id="modalImageContainer" class="mt-2">
-                        <img id="modalImage" src="" alt="Imagen del reporte" class="max-w-full max-h-64 rounded">
+                    <div id="modalImageContainerChajari" class="mt-2">
+                        <img id="modalImageChajari" src="" alt="Imagen del reporte" class="max-w-full max-h-64 rounded object-contain">
                     </div>
                 </div>
             </div>
             <div class="flex justify-end pt-2 border-t">
-                <button id="markInProgressBtn" class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 mr-2">
-                    <i class="fas fa-spinner mr-1"></i> En proceso
-                </button>
-                <button id="markSolvedBtn" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
-                    <i class="fas fa-check mr-1"></i> Resolver
-                </button>
+                <button id="markInProgressBtnChajari" class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 mr-2"><i class="fas fa-spinner mr-1"></i> En proceso</button>
+                <button id="markSolvedBtnChajari" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"><i class="fas fa-check mr-1"></i> Resolver</button>
             </div>
         </div>
-    </div>
+    </div> <!-- FIN Modal -->
 
+    <!-- Scripts de Leaflet -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-    <script>
-        // Global variables
-        let allReports = [];
-        let filteredReports = [];
-        let currentPage = 1;
-        let rowsPerPage = 10;
-        let totalPages = 1;
-        let sortColumn = 'date';
-        let sortDirection = 'desc';
-        let selectedLocation = null;
-        let currentReportId = null;
-        let managementMap, userMap;
-        let markersCluster;
+    
+    <!-- Firebase SDK y Configuración para CHAJARÍ -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+      import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, doc, updateDoc, getDocs, where, orderBy, limit, startAfter, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+      import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
-        // Tab switching functionality
+      // ***** ¡¡¡REEMPLAZA ESTO CON EL firebaseConfig DE TU PROYECTO DE CHAJARÍ!!! *****
+      const firebaseConfigChajari = {
+        apiKey: "AIzaSyCQ-iZoO4eqR1UQvd4_t6LMOk0dts6Spkg", 
+        authDomain: "reportes-urbanos-app.firebaseapp.com",
+        projectId: "reportes-urbanos-app",
+        storageBucket: "reportes-urbanos-app.appspot.com", 
+        messagingSenderId: "773628709452",
+        appId: "1:773628709452:web:f0af5a397bd4ff9c41c2e9"
+      };
+      // ***** FIN REEMPLAZO firebaseConfig *****
+
+      const appChajari = initializeApp(firebaseConfigChajari, "ChajariApp");
+      const dbChajari = getFirestore(appChajari);
+      const storageChajari = getStorage(appChajari); // Asumimos que Chajarí usará Storage para imágenes
+
+      window.db = dbChajari; 
+      window.storage = storageChajari; 
+      window.firebaseApp = appChajari; 
+      window.firebaseFirestore = { collection, addDoc, serverTimestamp, onSnapshot, query, doc, updateDoc, getDocs, where, orderBy, limit, startAfter, getDoc };
+      window.firebaseStorage = { ref, uploadBytes, getDownloadURL };
+
+      console.log("Firebase SDK para Chajarí cargado y configurado.");
+    </script>
+
+    <!-- El JavaScript principal de la aplicación va en la PARTE 3 -->
+
+    <script>
+        // ----- VARIABLES GLOBALES (Adaptadas para Chajarí) -----
+        let allReports = [];
+        let currentDisplayedReports = [];
+        let currentPage = 1;
+        let currentRowsPerPage = 10;
+        let totalPages = 1;
+        let currentSortColumn = 'fechaCreacion';
+        let currentSortDirection = 'desc';
+        let selectedLocation = null;
+        let currentReportIdForModal = null;
+        let managementMap;
+        let userMap;
+        let managementMapMarkers;
+        let userMapInitialized = false;
+        let userMapExistingReportMarkers; // Para los marcadores en userMap
+
+        // ----- EN chajari_fusion.html, AL PRINCIPIO DEL SCRIPT -----
+        // Objeto para definir colores e iconos de los tipos de incidentes de Chajarí
+        const CHAJARI_INCIDENT_TYPES = {
+            'bache':    { label: 'Baches',    colorHex: '#FF5733', colorClass: 'ch-bache-bg',    icon: 'fa-road' },
+            'semaforo': { label: 'Semáforos', colorHex: '#FFC300', colorClass: 'ch-semaforo-bg', icon: 'fa-traffic-light' },
+            'limpieza': { label: 'Limpieza',  colorHex: '#2ECC71', colorClass: 'ch-limpieza-bg',  icon: 'fa-trash' },
+            'transito': { label: 'Tránsito',  colorHex: '#3498DB', colorClass: 'ch-transito-bg',   icon: 'fa-car' },
+            'alumbrado':{ label: 'Alumbrado', colorHex: '#9B59B6', colorClass: 'ch-alumbrado-bg', icon: 'fa-lightbulb' },
+            'otro':     { label: 'Otros',     colorHex: '#F39C12', colorClass: 'ch-otro-bg', icon: 'fa-exclamation-triangle' },
+            'default':  { label: 'Desconocido',colorHex: '#7f8c8d',colorClass: 'bg-gray-500',   icon: 'fa-question-circle'} // Gris para default
+        };
+        // ----- FIN CHAJARI_INCIDENT_TYPES -----
+
+        // ----- REFERENCIAS A ELEMENTOS DEL DOM (Declarar con let, asignar en DOMContentLoaded) -----
+        let managementTabEl, userTabEl, managementContentEl, userContentEl;
+        let themeToggleBtnEl, themeIconEl;
+        let reportFormContainerEl, incidentFormEl, tipoIncidenteFormSelectEl, reportTitleInputEl, reportDescriptionTextareaEl;
+        let openCameraBtnEl, fileInputEl, cameraPreviewDivEl, previewImageEl;
+        let cancelReportBtnEl, submitReportBtnEl, successMessageDivEl, reportNumberSpanEl, newReportBtnEl;
+        // Para Filtros:
+        let filtroTipoSelectEl, filterStatusSelectEl, filterDateInputEl, applyFiltersBtnEl, resetFiltersBtnEl;
+        // Para Tabla y Paginación:
+        let reportsTableBodyEl, rowsPerPageSelectEl, paginationInfoEl, pageNumbersDivEl;
+        let firstPageBtnEl, prevPageBtnEl, nextPageBtnEl, lastPageBtnEl;
+        let prevPageMobileBtnEl, nextPageMobileBtnEl;
+        // Para Modal:
+        let reportModalEl, modalTitleEl, modalReportIdActualPEl, modalTypePEl, modalReportTitlePEl;
+        let modalStatusPEl, modalDatePEl, modalDateModifiedPEl, modalLocationPEl, modalDescriptionPEl;
+        let modalImageContainerEl, modalImageEl, closeModalBtnEl, markInProgressBtnEl, markSolvedBtnEl;
+        // Para Estadísticas:
+        let todayReportsSpanEl, monthReportsSpanEl, solvedPercentageSpanEl, urgentReportsSpanEl;
+
+
+        // ----- INICIALIZACIÓN AL CARGAR EL DOM -----
         document.addEventListener('DOMContentLoaded', function() {
-            const managementTab = document.getElementById('managementTab');
-            const userTab = document.getElementById('userTab');
-            const managementContent = document.getElementById('managementContent');
-            const userContent = document.getElementById('userContent');
+            console.log("DOM Chajarí cargado. Configurando listeners e inicializando mapas...");
+
+            // ***** ASIGNAR ELEMENTOS DEL DOM AQUÍ, DESPUÉS DE QUE EL DOM ESTÉ LISTO *****
+            managementTabEl = document.getElementById('managementTab');
+            userTabEl = document.getElementById('userTab');
+            managementContentEl = document.getElementById('managementContent');
+            userContentEl = document.getElementById('userContent');
+            themeToggleBtnEl = document.getElementById('themeToggleBtn');
+            themeIconEl = document.getElementById('themeIconEl');
+            reportFormContainerEl = document.getElementById('reportFormContainerChajari');
+            incidentFormEl = document.getElementById('incidentFormChajari');
+            tipoIncidenteFormSelectEl = document.getElementById('tipoIncidenteFormChajari');
+            reportTitleInputEl = document.getElementById('reportTitleChajari');
+            reportDescriptionTextareaEl = document.getElementById('reportDescriptionChajari');
+            openCameraBtnEl = document.getElementById('openCameraBtnChajari');
+            fileInputEl = document.getElementById('fileInputChajari');
+            cameraPreviewDivEl = document.getElementById('cameraPreviewChajari');
+            previewImageEl = document.getElementById('previewImageChajari');
+            cancelReportBtnEl = document.getElementById('cancelReportBtnChajari');
+            submitReportBtnEl = document.getElementById('submitReportBtnChajari');
+            successMessageDivEl = document.getElementById('successMessageChajari');
+            reportNumberSpanEl = document.getElementById('reportNumberChajari');
+            newReportBtnEl = document.getElementById('newReportBtnChajari');
+            filtroTipoSelectEl = document.getElementById('filtroTipoChajari');
+            filterStatusSelectEl = document.getElementById('filterStatusChajari');
+            filterDateInputEl = document.getElementById('filterDateChajari');
+            applyFiltersBtnEl = document.getElementById('applyFiltersBtnChajari');
+            resetFiltersBtnEl = document.getElementById('resetFiltersBtnChajari');
+            reportsTableBodyEl = document.getElementById('reportsTableBodyChajari');
+            rowsPerPageSelectEl = document.getElementById('rowsPerPageChajari');
+            paginationInfoEl = document.getElementById('paginationInfoChajari');
+            pageNumbersDivEl = document.getElementById('pageNumbersChajari');
+            firstPageBtnEl = document.getElementById('firstPageChajari');
+            prevPageBtnEl = document.getElementById('prevPageChajari');
+            nextPageBtnEl = document.getElementById('nextPageChajari');
+            lastPageBtnEl = document.getElementById('lastPageChajari');
+            prevPageMobileBtnEl = document.getElementById('prevPageMobileChajari');
+            nextPageMobileBtnEl = document.getElementById('nextPageMobileChajari');
+            reportModalEl = document.getElementById('reportModalChajari');
+            modalTitleEl = document.getElementById('modalTitleChajari');
+            modalReportIdActualPEl = document.getElementById('modalReportIdActualChajari');
+            modalTypePEl = document.getElementById('modalTypeChajari');
+            modalReportTitlePEl = document.getElementById('modalReportTitleChajari');
+            modalStatusPEl = document.getElementById('modalStatusChajari');
+            modalDatePEl = document.getElementById('modalDateChajari');
+            modalDateModifiedPEl = document.getElementById('modalDateModifiedChajari');
+            modalLocationPEl = document.getElementById('modalLocationChajari');
+            modalDescriptionPEl = document.getElementById('modalDescriptionChajari');
+            modalImageContainerEl = document.getElementById('modalImageContainerChajari');
+            modalImageEl = document.getElementById('modalImageChajari');
+            closeModalBtnEl = document.getElementById('closeModalChajari');
+            markInProgressBtnEl = document.getElementById('markInProgressBtnChajari');
+            markSolvedBtnEl = document.getElementById('markSolvedBtnChajari');
+            todayReportsSpanEl = document.getElementById('todayReportsChajari');
+            monthReportsSpanEl = document.getElementById('monthReportsChajari');
+            solvedPercentageSpanEl = document.getElementById('solvedPercentageChajari');
+            urgentReportsSpanEl = document.getElementById('urgentReportsChajari');
+            console.log("Chajarí: Referencias a elementos del DOM asignadas dentro de DOMContentLoaded.");
+            // ***** FIN ASIGNACIÓN ELEMENTOS DEL DOM *****
+
+            if (rowsPerPageSelectEl) currentRowsPerPage = parseInt(rowsPerPageSelectEl.value);
+            else console.warn("Elemento rowsPerPageChajari no encontrado.");
+
+            setupEventListeners();
             
-            managementTab.addEventListener('click', function() {
-                managementTab.classList.add('border-blue-500', 'bg-blue-50');
-                managementTab.classList.remove('text-gray-500', 'hover:text-gray-700');
-                userTab.classList.remove('border-blue-500', 'bg-blue-50');
-                userTab.classList.add('text-gray-500', 'hover:text-gray-700');
-                
-                managementContent.classList.add('active');
-                userContent.classList.remove('active');
-                
-                // Refresh map to ensure it displays correctly
-                setTimeout(() => {
-                    managementMap.invalidateSize();
-                }, 100);
-            });
+            if (typeof initManagementMap === "function") initManagementMap(); else console.error("initManagementMap no definida");
+            if (typeof initUserMap === "function") initUserMap(); else console.error("initUserMap no definida");
+            if (typeof listenToReports === "function") listenToReports(); else console.error("listenToReports no definida");
             
-            userTab.addEventListener('click', function() {
-                userTab.classList.add('border-blue-500', 'bg-blue-50');
-                userTab.classList.remove('text-gray-500', 'hover:text-gray-700');
-                managementTab.classList.remove('border-blue-500', 'bg-blue-50');
-                managementTab.classList.add('text-gray-500', 'hover:text-gray-700');
-                
-                userContent.classList.add('active');
-                managementContent.classList.remove('active');
-                
-                // Refresh map to ensure it displays correctly
-                setTimeout(() => {
-                    userMap.invalidateSize();
-                }, 100);
-            });
-            
-            // Initialize maps and reports
-            initManagementMap();
-            initUserMap();
-            loadSampleReports();
-            renderReportsTable();
-            updateStatistics();
-            
-            // Form handling for user reports
-            setupReportForm();
-            
-            // Table sorting
-            document.querySelectorAll('.sortable').forEach(header => {
-                header.addEventListener('click', () => {
-                    const column = header.getAttribute('data-column');
-                    if (sortColumn === column) {
-                        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-                    } else {
-                        sortColumn = column;
-                        sortDirection = 'asc';
-                    }
-                    renderReportsTable();
-                });
-            });
-            
-            // Pagination
-            document.getElementById('rowsPerPage').addEventListener('change', function() {
-                rowsPerPage = parseInt(this.value);
-                currentPage = 1;
-                renderReportsTable();
-            });
-            
-            document.getElementById('prevPage').addEventListener('click', function() {
-                if (currentPage > 1) {
-                    currentPage--;
-                    renderReportsTable();
-                }
-            });
-            
-            document.getElementById('nextPage').addEventListener('click', function() {
-                if (currentPage < totalPages) {
-                    currentPage++;
-                    renderReportsTable();
-                }
-            });
-            
-            document.getElementById('firstPage').addEventListener('click', function() {
-                currentPage = 1;
-                renderReportsTable();
-            });
-            
-            document.getElementById('lastPage').addEventListener('click', function() {
-                currentPage = totalPages;
-                renderReportsTable();
-            });
-            
-            document.getElementById('prevPageMobile').addEventListener('click', function() {
-                if (currentPage > 1) {
-                    currentPage--;
-                    renderReportsTable();
-                }
-            });
-            
-            document.getElementById('nextPageMobile').addEventListener('click', function() {
-                if (currentPage < totalPages) {
-                    currentPage++;
-                    renderReportsTable();
-                }
-            });
-            
-            // Filters
-            document.getElementById('applyFiltersBtn').addEventListener('click', function() {
-                applyFilters();
-                renderReportsTable();
-            });
-            
-            document.getElementById('resetFiltersBtn').addEventListener('click', function() {
-                document.getElementById('filterType').value = 'all';
-                document.getElementById('filterStatus').value = 'all';
-                document.getElementById('filterDate').value = '';
-                applyFilters();
-                renderReportsTable();
-            });
-            
-            // Modal buttons
-            document.getElementById('closeModal').addEventListener('click', closeModal);
-            document.getElementById('markInProgressBtn').addEventListener('click', function() {
-                updateReportStatus(currentReportId, 'En proceso');
-                closeModal();
-            });
-            document.getElementById('markSolvedBtn').addEventListener('click', function() {
-                updateReportStatus(currentReportId, 'Solucionado');
-                closeModal();
-            });
+            if (themeToggleBtnEl && themeIconEl) {
+                let theme = localStorage.getItem('chajariAppTheme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                applyChajariTheme(theme);
+            } else {
+                let theme = localStorage.getItem('chajariAppTheme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                document.body.classList.toggle('dark-mode', theme === 'dark');
+            }
+            console.log("Configuración de DOMContentLoaded completada.");
         });
-        
-        // Load sample reports
-        function loadSampleReports() {
-            const today = new Date();
-            const yesterday = new Date(today);
-            yesterday.setDate(yesterday.getDate() - 1);
+
+        // ----- CONFIGURACIÓN DE EVENT LISTENERS -----
+        function setupEventListeners() {
+            console.log("Configurando Event Listeners para Chajarí...");
+            // Pestañas
+            if (managementTabEl) managementTabEl.addEventListener('click', () => switchTab('management'));
+            if (userTabEl) {
+                userTabEl.addEventListener('click', () => {
+                    switchTab('user');
+                    if (!userMapInitialized && userMap) {
+                        console.log("Chajarí: Inicializando controles de userMap (GPS y clic).");
+                        const GpsButtonControl = L.Control.extend({
+                            options: { position: 'topright' },
+                            onAdd: function (map) {
+                                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+                                container.style.backgroundColor = 'white'; container.style.width = '34px'; container.style.height = '34px';
+                                container.style.borderRadius = '4px'; container.style.boxShadow = '0 1px 5px rgba(0,0,0,0.4)';
+                                container.style.display = 'flex'; container.style.alignItems = 'center'; container.style.justifyContent = 'center';
+                                container.style.cursor = 'pointer';
+                                container.innerHTML = '<i class="fas fa-location-crosshairs" style="font-size: 18px; color: #333;"></i>';
+                                container.title = 'Usar mi ubicación actual';
+                                L.DomEvent.disableClickPropagation(container);
+                                L.DomEvent.on(container, 'click', function (ev) { L.DomEvent.stopPropagation(ev); obtenerUbicacionGPSParaUserMap(); });
+                                return container;
+                            }
+                        });
+                        if(userMap.addControl) userMap.addControl(new GpsButtonControl()); else console.error("userMap.addControl no es una función en Chajarí");
+                        
+                        userMap.on('click', function(e) {
+                            if (!e.latlng) { console.error("Error: e.latlng no definido en userMap click (Chajarí)."); return; }
+                            actualizarMarcadorYFormulario(e.latlng);
+                        });
+                        userMapInitialized = true;
+                        console.log("Chajarí: userMap con controles y listeners interactivos inicializado.");
+                    }
+                    if (userMap && selectedLocation) { userMap.removeLayer(selectedLocation); selectedLocation = null; }
+                    if (reportFormContainerEl) reportFormContainerEl.classList.add('hidden');
+                    if (successMessageDivEl) successMessageDivEl.classList.add('hidden');
+                    if (userMapInitialized && allReports.length > 0 && userMapExistingReportMarkers) { renderUserMapExistingReports(allReports); }
+                     else if (userMapInitialized && userMapExistingReportMarkers) { userMapExistingReportMarkers.clearLayers(); }
+                });
+            }
+
+            if (themeToggleBtnEl) themeToggleBtnEl.addEventListener('click', toggleChajariTheme);
+            if (incidentFormEl) incidentFormEl.addEventListener('submit', handleReportSubmitChajari);
+            if (cancelReportBtnEl) cancelReportBtnEl.addEventListener('click', cancelReportChajari);
+            if (newReportBtnEl) newReportBtnEl.addEventListener('click', prepareNewReportChajari);
+            if (openCameraBtnEl && fileInputEl) openCameraBtnEl.addEventListener('click', () => fileInputEl.click());
+            if (fileInputEl) fileInputEl.addEventListener('change', handleFileSelectChajari);
+            if (applyFiltersBtnEl) applyFiltersBtnEl.addEventListener('click', applyFiltersChajari);
+            if (resetFiltersBtnEl) resetFiltersBtnEl.addEventListener('click', resetFiltersChajari);
             
-            allReports = [
-                {
-                    id: 1245,
-                    type: 'bache',
-                    title: 'Bache profundo en Av. 9 de Julio y San Martín',
-                    description: 'Bache de aproximadamente 40cm de profundidad en la esquina noreste de la intersección',
-                    date: formatDate(yesterday),
-                    status: 'En proceso',
-                    lat: -30.751,
-                    lng: -57.985,
-                    image: 'https://images.unsplash.com/photo-1562259924975-6a6a0eaa8a9a?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=60'
-                },
-                {
-                    id: 1244,
-                    type: 'alumbrado',
-                    title: 'Lámpara quemada en plaza San Martín',
-                    description: 'Poste de luz N°45 en la plaza principal con lámpara quemada',
-                    date: formatDate(yesterday),
-                    status: 'Solucionado',
-                    lat: -30.749,
-                    lng: -57.982,
-                    image: 'https://images.unsplash.com/photo-1517991104123-5d2a60d58b11?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=60'
-                },
-                {
-                    id: 1243,
-                    type: 'limpieza',
-                    title: 'Basura acumulada en calle Mitre al 1200',
-                    description: 'Bolsones de basura acumulados en la vereda frente al número 1200',
-                    date: formatDate(yesterday),
-                    status: 'Iniciado',
-                    lat: -30.753,
-                    lng: -57.981,
-                    image: 'https://images.unsplash.com/photo-1604186838347-9faaf0b83be5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=60'
-                },
-                {
-                    id: 1242,
-                    type: 'semaforo',
-                    title: 'Semáforo no funciona en Av. Libertad y Sarmiento',
-                    description: 'Semáforo para peatones no enciende la luz verde',
-                    date: formatDate(new Date('2023-06-13')),
-                    status: 'En proceso',
-                    lat: -30.748,
-                    lng: -57.986,
-                    image: 'https://images.unsplash.com/photo-1581092921461-39b2f2c8a452?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=60'
-                },
-                {
-                    id: 1241,
-                    type: 'transito',
-                    title: 'Estacionamiento ilegal en calle Belgrano',
-                    description: 'Vehículos estacionados en doble fila obstruyendo el tránsito',
-                    date: formatDate(new Date('2023-06-12')),
-                    status: 'Iniciado',
-                    lat: -30.752,
-                    lng: -57.984,
-                    image: 'https://images.unsplash.com/photo-1564501049412-61c2a3083791?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=500&q=60'
+            // Asegurarse que el selector para .sortable sea específico al contenido de gestión
+            const sortableHeaders = document.querySelectorAll('#managementContent .sortable');
+            if (sortableHeaders) {
+                sortableHeaders.forEach(header => {
+                    header.addEventListener('click', () => handleSortChajari(header.getAttribute('data-column')));
+                });
+            }
+
+            if (rowsPerPageSelectEl) rowsPerPageSelectEl.addEventListener('change', (e) => { currentRowsPerPage = parseInt(e.target.value); currentPage = 1; renderTableChajari(); });
+            if(firstPageBtnEl) firstPageBtnEl.addEventListener('click', () => paginateChajari('first'));
+            if(prevPageBtnEl) prevPageBtnEl.addEventListener('click', () => paginateChajari('prev'));
+            if(nextPageBtnEl) nextPageBtnEl.addEventListener('click', () => paginateChajari('next'));
+            if(lastPageBtnEl) lastPageBtnEl.addEventListener('click', () => paginateChajari('last'));
+            if(prevPageMobileBtnEl) prevPageMobileBtnEl.addEventListener('click', () => paginateChajari('prev'));
+            if(nextPageMobileBtnEl) nextPageMobileBtnEl.addEventListener('click', () => paginateChajari('next'));
+            if(closeModalBtnEl) closeModalBtnEl.addEventListener('click', closeModalChajari);
+            if(markInProgressBtnEl) markInProgressBtnEl.addEventListener('click', () => updateReportStatusOnModalChajari('En proceso'));
+            if(markSolvedBtnEl) markSolvedBtnEl.addEventListener('click', () => updateReportStatusOnModalChajari('Solucionado'));
+            console.log("Event Listeners para Chajarí configurados.");
+        }
+
+        // ----- LÓGICA DE TEMA OSCURO -----
+        function applyChajariTheme(theme) {
+            const isDark = theme === 'dark';
+            document.body.classList.toggle('dark-mode', isDark);
+            if (themeIconEl) { // Solo si el icono existe
+                themeIconEl.classList.toggle('fa-sun', isDark);
+                themeIconEl.classList.toggle('fa-moon', !isDark);
+                // El CSS se encarga de los colores del icono ahora
+            }
+            localStorage.setItem('chajariAppTheme', theme); // Key específica
+            console.log(`Tema Chajarí aplicado: ${theme}`);
+            // Opcional: Forzar redibujado de mapas si es necesario
+            if (managementMap && managementContentEl && managementContentEl.classList.contains('active')) managementMap.invalidateSize();
+            if (userMap && userContentEl && userContentEl.classList.contains('active')) userMap.invalidateSize();
+        }
+
+        function toggleChajariTheme() {
+            applyChajariTheme(document.body.classList.contains('dark-mode') ? 'light' : 'dark');
+        }
+
+        // ----- LÓGICA DE PESTAÑAS -----
+        function switchTab(tabName) {
+            // ... (código de switchTab que ya tienes y funciona) ...
+            const isActiveManagement = tabName === 'management';
+            managementTabEl.classList.toggle('border-blue-500', isActiveManagement);
+            managementTabEl.classList.toggle('bg-blue-50', isActiveManagement);
+            managementTabEl.classList.toggle('text-gray-500', !isActiveManagement);
+            managementTabEl.classList.toggle('hover:text-gray-700', !isActiveManagement);
+            managementContentEl.classList.toggle('active', isActiveManagement);
+
+            userTabEl.classList.toggle('border-blue-500', !isActiveManagement);
+            userTabEl.classList.toggle('bg-blue-50', !isActiveManagement);
+            userTabEl.classList.toggle('text-gray-500', isActiveManagement);
+            userTabEl.classList.toggle('hover:text-gray-700', isActiveManagement);
+            userContentEl.classList.toggle('active', !isActiveManagement);
+
+            setTimeout(() => {
+                if (isActiveManagement && managementMap) managementMap.invalidateSize();
+                if (!isActiveManagement && userMap) userMap.invalidateSize();
+            }, 100);
+        }
+
+        // ----- LÓGICA DE FIREBASE (LECTURA - ADAPTADA PARA CHAJARÍ) -----
+        function listenToReports() {
+            console.log("Chajarí: Configurando listener para reportes de Firebase...");
+            const { collection, query, onSnapshot, orderBy } = window.firebaseFirestore; 
+            
+            if (!window.db || !collection || !query || !onSnapshot || !orderBy) {
+                console.error("CHAJARÍ ERROR CRÍTICO: Funciones de Firestore no disponibles para listenToReports.");
+                return;
+            }
+
+            // Query a la colección "reclamos" de Chajarí, ordenada por fechaCreacion
+            const q = query(collection(window.db, "reclamos"), orderBy("fechaCreacion", "desc")); 
+
+            onSnapshot(q, (querySnapshot) => {
+                console.log("Chajarí onSnapshot: Recibió datos. Cantidad de docs:", querySnapshot.size);
+                if (querySnapshot.empty) {
+                    allReports = [];
+                    console.log("Chajarí onSnapshot: No se encontraron reportes en Firestore.");
+                } else {
+                    allReports = querySnapshot.docs.map(doc => {
+                        const data = doc.data();
+                        // --- MAPEO DE CAMPOS DE CHAJARÍ ---
+                        return {
+                            id: doc.id,
+                            // Para Chajarí, leemos 'titulo' y 'tipoIncidente' de Firestore
+                            titulo: data.titulo || 'Sin Título/Ubicación',
+                            tipoIncidente: (data.tipoIncidente || 'Otro').toLowerCase(), // Normalizar a minúsculas para consistencia
+                            
+                            descripcion: data.descripcion || 'S/D',     
+                            estado: data.estado || 'Nuevo', // O 'Iniciado' si ese es tu estado por defecto en Chajarí
+                            
+                            // Usamos 'date' y 'dateModified' para consistencia interna,
+                            // pero leemos de 'fechaCreacion' y 'fechaUltimaModificacion' de Firestore
+                            date: data.fechaCreacion ? formatDate(data.fechaCreacion.toDate()) : 'Fecha no disponible',
+                            dateModified: data.fechaUltimaModificacion ? formatDate(data.fechaUltimaModificacion.toDate()) : '-',
+                            // Mantener los campos originales de fecha también si los necesitas en otra parte con esos nombres
+                            fechaCreacionOriginal: data.fechaCreacion, // Timestamp original
+                            fechaUltimaModificacionOriginal: data.fechaUltimaModificacion, // Timestamp original
+
+                            latitud: data.latitud,
+                            longitud: data.longitud,
+                            imagenURL: data.imagenURL || null
+                            // Ya NO hay 'categoria' (como la de Madryn), 'calle1', 'calle2'
+                        };
+                    });
                 }
-            ];
+                
+                console.log("Chajarí: allReports actualizado. Cantidad:", allReports.length);
+                // if (allReports.length > 0) { // Descomenta para depurar el primer objeto
+                //     console.log("Chajarí: Primer reporte mapeado:", JSON.parse(JSON.stringify(allReports[0])));
+                // }
+
+                // Llamar a las funciones de Chajarí para actualizar la UI
+                // Asegúrate de que estas funciones estén definidas y usen los nombres correctos
+                if (typeof applyFiltersChajari === "function") {
+                    applyFiltersChajari(); 
+                } else {
+                    console.warn("FUNCIÓN applyFiltersChajari NO ESTÁ DEFINIDA o no se ha rellenado con la lógica de Chajarí.");
+                }
+                if (typeof updateStatisticsChajari === "function") {
+                    updateStatisticsChajari(); 
+                } else {
+                    console.warn("FUNCIÓN updateStatisticsChajari NO ESTÁ DEFINIDA o no se ha rellenado con la lógica de Chajarí.");
+                }
+                if (typeof renderUserMapExistingReports === "function" && userContentEl && userContentEl.classList.contains('active') && typeof userMapExistingReportMarkers !== 'undefined') {
+                    renderUserMapExistingReports(allReports);
+                }
+            }, (error) => {
+                console.error("Chajarí ERROR en onSnapshot (escuchando reclamos):", error);
+            });
+        }
+
+        // ----- LÓGICA DE FORMULARIO DE REPORTE (CHAJARÍ) -----
+        async function handleReportSubmitChajari(event) { // CAMBIADO EL NOMBRE DE LA FUNCIÓN
+            event.preventDefault();
+            if (!selectedLocation) { 
+                alert('Por favor, seleccione una ubicación en el mapa.'); 
+                return; 
+            }
+            // Asegúrate de que submitReportBtnEl apunte al ID correcto de tu botón de envío del formulario de Chajarí
+            if(submitReportBtnEl) submitReportBtnEl.disabled = true;
+
+            // --- OBTENER VALORES DEL FORMULARIO DE CHAJARÍ ---
+            // Asegúrate que tipoIncidenteFormSelectEl y reportTitleInputEl apunten a los IDs correctos
+            const tipoIncidenteSeleccionado = tipoIncidenteFormSelectEl ? tipoIncidenteFormSelectEl.value.toLowerCase() : 'otro'; // Normalizar a minúsculas
+            const tituloIngresado = reportTitleInputEl ? reportTitleInputEl.value.trim() : '';
+            const descripcionIngresada = reportDescriptionTextareaEl ? reportDescriptionTextareaEl.value.trim() : '';
             
-            filteredReports = [...allReports];
+            const latLng = selectedLocation.getLatLng();
+            const file = fileInputEl ? fileInputEl.files[0] : null;
+            let imagenURL = null;
+
+            if (file && window.firebaseStorage && window.storage) {
+                try {
+                    // Considera una ruta de Storage específica para Chajarí si es un proyecto Firebase diferente
+                    const storageRef = window.firebaseStorage.ref(window.storage, `imagenes_chajari/${Date.now()}_${file.name}`);
+                    await window.firebaseStorage.uploadBytes(storageRef, file);
+                    imagenURL = await window.firebaseStorage.getDownloadURL(storageRef);
+                    console.log("Chajarí: Imagen subida:", imagenURL);
+                } catch (error) { 
+                    console.error("Chajarí: Error al subir imagen:", error); 
+                    alert("Error al subir la imagen. El reporte se enviará sin ella.");
+                }
+            }
+
+            // --- CONSTRUIR OBJETO PARA FIRESTORE DE CHAJARÍ ---
+            const nuevoReporteData = {
+                titulo: tituloIngresado,                      // Campo de Chajarí
+                tipoIncidente: tipoIncidenteSeleccionado,     // Campo de Chajarí (ya en minúsculas)
+                descripcion: descripcionIngresada,
+                latitud: latLng.lat,
+                longitud: latLng.lng,
+                estado: "Nuevo", // O "Iniciado" - ¡DEBE SER CONSISTENTE con listenToReports y tus filtros!
+                fechaCreacion: window.firebaseFirestore.serverTimestamp(),
+                fechaUltimaModificacion: window.firebaseFirestore.serverTimestamp(),
+                imagenURL: imagenURL
+                // No 'categoria' como en Madryn, no 'calle1', 'calle2'
+                // Añade tu campo 'source' si quieres identificar estos: source: "app_chajari_manual"
+            };
+            
+            console.log("Chajarí: Enviando a Firestore:", nuevoReporteData);
+
+            try {
+                const { collection, addDoc } = window.firebaseFirestore;
+                // Asegúrate que la colección sea "reclamos" o la que usas en Chajarí
+                const docRef = await addDoc(collection(window.db, "reclamos"), nuevoReporteData);
+                
+                console.log("Chajarí: Reporte guardado con ID:", docRef.id);
+                if(successMessageDivEl) successMessageDivEl.classList.remove('hidden');
+                // Asegúrate que reportNumberSpanEl apunte al ID correcto en Chajarí
+                if(reportNumberSpanEl) reportNumberSpanEl.textContent = docRef.id.substring(0,10)+"..."; 
+                if(reportFormContainerEl) reportFormContainerEl.classList.add('hidden');
+                if(incidentFormEl) incidentFormEl.reset();
+                if(previewImageEl) previewImageEl.src = '#'; 
+                if(cameraPreviewDivEl) cameraPreviewDivEl.classList.add('hidden'); 
+                if(fileInputEl) fileInputEl.value = null;
+                if (selectedLocation && userMap) { userMap.removeLayer(selectedLocation); selectedLocation = null; }
+
+            } catch (error) { 
+                console.error("Chajarí: Error al guardar reporte en Firestore:", error); 
+                alert('Error al enviar el reporte.');
+            } finally { 
+                if(submitReportBtnEl) submitReportBtnEl.disabled = false; 
+            }
         }
         
-        // Format date for display
-        function formatDate(date) {
-            const day = date.getDate().toString().padStart(2, '0');
-            const month = (date.getMonth() + 1).toString().padStart(2, '0');
-            const year = date.getFullYear();
-            return `${day}/${month}/${year}`;
+        function cancelReportChajari() {
+            console.log("Chajarí: Cancelando reporte...");
+            if (selectedLocation && userMap) {
+                userMap.removeLayer(selectedLocation);
+                selectedLocation = null;
+                console.log("Chajarí: Marcador de ubicación eliminado del userMap.");
+            }
+            if (reportFormContainerEl) { // reportFormContainerChajari en tus constantes
+                reportFormContainerEl.classList.add('hidden');
+                console.log("Chajarí: Contenedor del formulario oculto.");
+            }
+            if (incidentFormEl) { // incidentFormChajari en tus constantes
+                incidentFormEl.reset();
+                console.log("Chajarí: Formulario reseteado.");
+            }
+            if (previewImageEl) { // previewImageChajari
+                previewImageEl.src = '#';
+            }
+            if (cameraPreviewDivEl) { // cameraPreviewChajari
+                cameraPreviewDivEl.classList.add('hidden');
+            }
+            if (fileInputEl) { // fileInputChajari
+                fileInputEl.value = null; // Limpiar el input de archivo
+            }
+            if (successMessageDivEl) { // successMessageChajari
+                successMessageDivEl.classList.add('hidden');
+            }
         }
         
-        // Parse date for sorting
-        function parseDate(dateStr) {
-            const [day, month, year] = dateStr.split('/');
-            return new Date(year, month - 1, day);
+        function prepareNewReportChajari() { console.warn("FUNCIÓN prepareNewReportChajari NECESITA SER COMPLETADA..."); }
+        function handleFileSelectChajari(event) { console.warn("FUNCIÓN handleFileSelectChajari NECESITA SER COMPLETADA..."); }
+
+        // ----- LÓGICA DE FILTROS (CHAJARÍ) -----
+        function applyFiltersChajari() { 
+            // Usamos las constantes globales definidas arriba
+            // Ya no hacemos getElementById aquí dentro.
+
+            // Verificar si los elementos existen antes de acceder a .value
+            const tipo = filtroTipoSelectEl ? filtroTipoSelectEl.value.toLowerCase() : 'todos';
+            const estado = filterStatusSelectEl ? filterStatusSelectEl.value : 'Todos'; // Asume que 'Todos' es el value para "todos los estados"
+            const fecha = filterDateInputEl ? filterDateInputEl.value : '';
+
+            console.log("Chajarí - Aplicando Filtros: Tipo:", tipo, "Estado:", estado, "Fecha:", fecha);
+            if (!allReports) {
+                console.warn("applyFiltersChajari: allReports no está definido o es nulo.");
+                currentDisplayedReports = [];
+            } else {
+                console.log("Chajarí - AllReports ANTES de filtrar:", allReports.length);
+                currentDisplayedReports = allReports.filter(report => {
+                    const tipoPasa = (tipo === 'todos') || (report.tipoIncidente === tipo); // Asume report.tipoIncidente está en minúsculas
+                    const estadoPasa = (estado === 'Todos') || (report.estado === estado);
+                    
+                    let fechaPasa = true;
+                    if (fecha) { 
+                        if (report.date && report.date !== 'Fecha no disponible' && report.date !== 'Fecha inválida') {
+                            const parts = report.date.split('/');
+                            if (parts.length === 3) {
+                                const reportDateYYYYMMDD = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                                fechaPasa = reportDateYYYYMMDD === fecha;
+                            } else { fechaPasa = false; }
+                        } else { fechaPasa = false; }
+                    }
+                    return tipoPasa && estadoPasa && fechaPasa;
+                });
+            }
+
+            console.log("Chajarí - Filtros aplicados. currentDisplayedReports:", currentDisplayedReports.length);
+            currentPage = 1; 
+
+            // Estas funciones deben estar definidas y rellenadas con tu lógica de Chajarí
+            if (typeof renderTableChajari === "function") renderTableChajari(); 
+            else console.warn("FUNCIÓN renderTableChajari NO ESTÁ DEFINIDA.");
+            
+            if (typeof renderMapMarkersChajari === "function") renderMapMarkersChajari(); 
+            else console.warn("FUNCIÓN renderMapMarkersChajari NO ESTÁ DEFINIDA.");
         }
-        
-        // Management Map
+
+         function resetFiltersChajari() {
+            console.log("Chajarí: Reseteando filtros...");
+            // Asegúrate que estas variables apunten a los IDs correctos de Chajarí
+            if (filtroTipoSelectEl) filtroTipoSelectEl.value = 'Todos';
+            if (filterStatusSelectEl) filterStatusSelectEl.value = 'Todos';
+            if (filterDateInputEl) filterDateInputEl.value = '';
+            
+            // No es necesario reasignar filteredReports aquí, applyFiltersChajari lo hará.
+            // currentPage = 1; // applyFiltersChajari ya resetea currentPage
+            applyFiltersChajari(); // Volver a aplicar filtros (que mostrará todos los reportes)
+            console.log("Chajarí: Filtros reseteados.");
+        }
+
+        // ----- LÓGICA DE LA TABLA Y PAGINACIÓN (CHAJARÍ) -----        
+        function renderTableChajari() {
+            if (!reportsTableBodyEl) {
+                console.error("Chajarí renderTable: reportsTableBodyEl no encontrado en el DOM.");
+                return;
+            }
+            reportsTableBodyEl.innerHTML = ''; 
+            // console.log("Chajarí renderTable: currentDisplayedReports ANTES de ordenar y paginar:", JSON.parse(JSON.stringify(currentDisplayedReports)));
+
+            // 1. ORDENAMIENTO (Esta lógica ya debería estar bien desde el esqueleto)
+            if (currentDisplayedReports && currentDisplayedReports.length > 0) {
+                currentDisplayedReports.sort((a, b) => {
+                    let valA = a[currentSortColumn];
+                    let valB = b[currentSortColumn];
+
+                    if (currentSortColumn === 'fechaCreacion' || currentSortColumn === 'date' || 
+                        currentSortColumn === 'fechaUltimaModificacion' || currentSortColumn === 'dateModified') {
+                        valA = parseDate(valA instanceof Date ? formatDate(valA) : valA); // Asegurar que sea string DD/MM/YYYY para parseDate
+                        valB = parseDate(valB instanceof Date ? formatDate(valB) : valB);
+                    } else if (typeof valA === 'string' && typeof valB === 'string') {
+                        valA = valA.toLowerCase(); // Ordenamiento insensible a mayúsculas para strings
+                        valB = valB.toLowerCase();
+                    }
+
+                    if (valA < valB) return currentSortDirection === 'asc' ? -1 : 1;
+                    if (valA > valB) return currentSortDirection === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+            
+            // 2. PAGINACIÓN (Esta lógica ya debería estar bien desde el esqueleto)
+            totalPages = Math.ceil(currentDisplayedReports.length / currentRowsPerPage);
+            if (totalPages === 0) totalPages = 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage === 0 && totalPages > 0) currentPage = 1; 
+
+            const startIndex = (currentPage - 1) * currentRowsPerPage;
+            const endIndex = Math.min(startIndex + currentRowsPerPage, currentDisplayedReports.length);
+            const paginatedReports = currentDisplayedReports.slice(startIndex, endIndex);
+
+            console.log(`Chajarí renderTable: Renderizando ${paginatedReports.length} reportes para pág. ${currentPage}. (Total filtrados: ${currentDisplayedReports.length})`);
+
+            // 3. RENDERIZADO DE FILAS
+            if (paginatedReports.length === 0 && currentDisplayedReports.length === 0 && currentPage === 1) {
+                const row = reportsTableBodyEl.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 7; // Número de columnas en tu tabla de Chajarí
+                cell.textContent = 'No hay reportes para mostrar.';
+                cell.className = 'text-center py-4 text-gray-500 dark:text-gray-400';
+            } else if (paginatedReports.length === 0 && currentDisplayedReports.length > 0) {
+                const row = reportsTableBodyEl.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 7;
+                cell.textContent = 'No hay reportes en esta página con los filtros actuales.';
+                cell.className = 'text-center py-4 text-gray-500 dark:text-gray-400';
+            } else {
+                paginatedReports.forEach(report => {
+                    const row = reportsTableBodyEl.insertRow();
+                    row.setAttribute('data-report-id', report.id);
+                    row.style.cursor = 'pointer';
+                    row.addEventListener('click', () => { 
+                        if(typeof handleRowClickChajari === 'function') handleRowClickChajari(report);
+                        else console.warn("FUNCIÓN handleRowClickChajari NECESITA SER COMPLETADA (Chajarí)");
+                    });
+
+                    let cell;
+
+                    // Celda 1: ID
+                    cell = row.insertCell();
+                    cell.className = 'px-6 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 max-w-xs overflow-hidden text-ellipsis'; // Clases para truncar
+                    cell.title = report.id || 'S/ID'; // Mostrar ID completo en tooltip
+                    cell.textContent = `#${report.id ? report.id.substring(0,12) : 'S/ID'}...`; // Mostrar una porción más grande pero aún truncada
+                    
+                    // Celda 2: Tipo de Incidente
+                    cell = row.insertCell();
+                    cell.className = 'px-6 py-2 whitespace-nowrap text-sm';
+                    const typeInfo = CHAJARI_INCIDENT_TYPES[report.tipoIncidente] || CHAJARI_INCIDENT_TYPES['default']; // tipoIncidente ya debería estar normalizado (ej. minúsculas)
+                    
+                    // Determinar clases de color para el badge de tipo (similar a tu tabla original)
+                    let tipoBadgeColorClasses = 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200'; // Default
+                    if (typeInfo.colorClass) { // Si CHAJARI_INCIDENT_TYPES provee colorClass (ej. 'ch-bache-bg')
+                        // Necesitarías mapear esto a clases de Tailwind para el badge
+                        // Ejemplo simple si colorClass es 'bg-red-500':
+                        // tipoBadgeColorClasses = `${typeInfo.colorClass.replace('-500', '-100')} ${typeInfo.colorClass.replace('bg-', 'text-').replace('-500', '-800')}`;
+                        // O usa un switch o un mapeo más directo si los nombres de colorClass son simples:
+                        switch (report.tipoIncidente) {
+                            case 'bache': tipoBadgeColorClasses = 'bg-red-100 text-red-800 dark:bg-red-700 dark:text-red-200'; break;
+                            case 'semaforo': tipoBadgeColorClasses = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-700 dark:text-yellow-200'; break;
+                            case 'limpieza': tipoBadgeColorClasses = 'bg-green-100 text-green-800 dark:bg-green-700 dark:text-green-200'; break;
+                            case 'transito': tipoBadgeColorClasses = 'bg-blue-100 text-blue-800 dark:bg-blue-700 dark:text-blue-200'; break;
+                            case 'alumbrado': tipoBadgeColorClasses = 'bg-purple-100 text-purple-800 dark:bg-purple-700 dark:text-purple-200'; break; // Necesitarás definir colores dark para purple
+                            case 'otro': tipoBadgeColorClasses = 'bg-orange-100 text-orange-800 dark:bg-orange-700 dark:text-orange-200'; break; // Necesitarás colores dark para orange
+                        }
+                    }
+                    cell.innerHTML = `<span class="status-badge ${tipoBadgeColorClasses}">
+                                        <i class="fas ${typeInfo.icon} mr-1"></i>${typeInfo.label}
+                                    </span>`;
+                    
+                    // Celda 3: Título/Ubicación (campo 'titulo' de Chajarí)
+                    cell = row.insertCell();
+                    cell.className = 'px-6 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300';
+                    cell.textContent = report.titulo || 'N/A';
+                    
+                    // Celda 4: Fecha Creación
+                    cell = row.insertCell();
+                    cell.className = 'px-6 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300';
+                    cell.textContent = report.date || 'N/A'; // 'date' viene de listenToReports
+                    
+                    // Celda 5: Estado
+                    cell = row.insertCell();
+                    cell.className = 'px-6 py-2 whitespace-nowrap text-sm';
+                    cell.innerHTML = `<span class="status-badge ${getStatusClass(report.estado)}">${report.estado}</span>`;
+                    
+                    // Celda 6: Últ. Modif.
+                    cell = row.insertCell();
+                    cell.className = 'px-6 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300';
+                    cell.textContent = report.dateModified || '-';
+                    
+                    // Celda 7: Acciones
+                    cell = row.insertCell();
+                    cell.className = 'px-6 py-2 whitespace-nowrap text-right text-sm font-medium';
+                    let actionsHTML = `<button onclick="event.stopPropagation(); openReportModalChajari('${report.id}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 mr-2" title="Ver Detalles"><i class="fas fa-eye"></i></button>`;
+                    if (report.estado !== 'Solucionado') { // Asumiendo que 'Solucionado' es el string exacto
+                        actionsHTML += `<button onclick="event.stopPropagation(); updateReportStatusOnModalChajari('${report.id}', 'Solucionado')" class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300" title="Marcar como Solucionado"><i class="fas fa-check"></i></button>`;
+                    }
+                    // Aquí puedes añadir más botones si tu Chajarí original los tenía (ej. para "En proceso")
+                    cell.innerHTML = actionsHTML;
+                });
+            }
+            
+            // 4. ACTUALIZAR CONTROLES DE PAGINACIÓN
+            if (typeof updatePaginationControlsChajari === "function") {
+                updatePaginationControlsChajari();
+            } else {
+                console.warn("FUNCIÓN updatePaginationControlsChajari NO DEFINIDA/RELLENADA. La paginación no se actualizará.");
+            }
+        }
+
+        function handleSortChajari(column) { console.warn("FUNCIÓN handleSortChajari NECESITA SER COMPLETADA..."); }
+
+        function paginateChajari(action) { /* ... (código de paginate que ya tienes) ... */
+            switch (action) {
+                case 'first': currentPage = 1; break; case 'prev': if (currentPage > 1) currentPage--; break;
+                case 'next': if (currentPage < totalPages) currentPage++; break; case 'last': currentPage = totalPages; break;
+                case Number.isInteger(action): currentPage = action; break;
+            } renderTableChajari();
+        }
+
+        function updatePaginationControlsChajari() { /* ... (código de updatePaginationControls que ya tienes) ... */
+            const startIndex = (currentPage - 1) * currentRowsPerPage;
+            const endIndex = Math.min(startIndex + currentRowsPerPage, currentDisplayedReports.length);
+            paginationInfoEl.innerHTML = `Mostrando ${currentDisplayedReports.length > 0 ? startIndex + 1 : 0} a ${endIndex} de ${currentDisplayedReports.length} resultados`;
+            firstPageBtnEl.disabled = currentPage === 1; prevPageBtnEl.disabled = currentPage === 1;
+            nextPageBtnEl.disabled = currentPage === totalPages || totalPages <= 1; lastPageBtnEl.disabled = currentPage === totalPages || totalPages <= 1;
+            prevPageMobileBtnEl.disabled = currentPage === 1; nextPageMobileBtnEl.disabled = currentPage === totalPages || totalPages <= 1;
+            pageNumbersDivEl.innerHTML = ''; const maxPagesToShow = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+            let endPageNum = Math.min(totalPages, startPage + maxPagesToShow - 1);
+            if (endPageNum - startPage + 1 < maxPagesToShow && totalPages >= maxPagesToShow) { startPage = Math.max(1, endPageNum - maxPagesToShow + 1); }
+            for (let i = startPage; i <= endPageNum; i++) {
+                if (i > 0) {
+                    const pageBtn = document.createElement('button');
+                    pageBtn.className = `relative inline-flex items-center px-4 py-2 border text-sm font-medium ${i === currentPage ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}`;
+                    pageBtn.textContent = i; pageBtn.onclick = () => paginateChajari(i); pageNumbersDivEl.appendChild(pageBtn);
+                }
+            }
+        }
+
+        function handleRowClickChajari(report) {
+            console.log(`Chajarí: Fila clickeada, Reporte ID: ${report.id}`);
+
+            // 1. Quitar resaltado de cualquier otra fila en la tabla
+            if (reportsTableBodyEl) { // reportsTableBodyEl es tu <tbody> con id="reportsTableBodyChajari"
+                reportsTableBodyEl.querySelectorAll('tr').forEach(tr => {
+                    tr.classList.remove('bg-blue-200'); // O la clase de resaltado que uses
+                });
+            }
+
+            // 2. Resaltar la fila actual clickeada
+            const currentRowElement = document.querySelector(`#reportsTableBodyChajari tr[data-report-id="${report.id}"]`);
+            if (currentRowElement) {
+                currentRowElement.classList.add('bg-blue-200');
+                // Opcional: Hacer scroll a la fila si la tabla es muy larga y la fila podría no estar visible
+                // currentRowElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                console.warn("handleRowClickChajari: No se pudo encontrar el elemento de la fila para resaltar:", report.id);
+            }
+
+            // 3. Centrar mapa y abrir popup del marcador correspondiente
+            if (report.latitud != null && report.longitud != null && managementMap) {
+                managementMap.flyTo([report.latitud, report.longitud], 17); // Zoom más cercano, ajusta si es necesario
+
+                if (managementMapMarkers) { // managementMapMarkers es tu L.markerClusterGroup
+                    managementMapMarkers.eachLayer(marker => {
+                        // Asumimos que en renderMapMarkersChajari guardaste reportData en el marcador
+                        if (marker.reportData && marker.reportData.id === report.id) {
+                            // Leaflet.markercluster maneja el zoom para mostrar la capa si está en un cluster
+                            if (managementMapMarkers.hasLayer(marker)) {
+                                managementMapMarkers.zoomToShowLayer(marker, function() {
+                                    marker.openPopup();
+                                });
+                            } else { // Si el marcador no está directamente en el cluster group (raro si se añadió bien)
+                                // Esto puede pasar si el marcador está muy anidado en clusters que no se expanden con zoomToShowLayer.
+                                // Como fallback, intentamos abrir el popup directamente si el mapa ya está zoomeado.
+                                marker.openPopup();
+                            }
+                            return; // Salir del bucle eachLayer una vez encontrado
+                        }
+                    });
+                }
+            } else {
+                console.warn(`handleRowClickChajari: Reporte ${report.id} sin coordenadas para centrar mapa o managementMap no definido.`);
+            }
+            // Opcional: También abrir el modal si es el comportamiento deseado al hacer clic en la fila
+            // if (typeof openReportModalChajari === "function") {
+            //     openReportModalChajari(report.id);
+            // }
+        }
+
+
+        // ----- LÓGICA DEL MAPA (CHAJARÍ) -----
         function initManagementMap() {
-            // Coordinates for Chajarí, Entre Ríos
-            const chajariCoords = [-30.7500, -57.9833];
-            
-            managementMap = L.map('map').setView(chajariCoords, 14);
-            
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(managementMap);
-            
-            // Initialize marker cluster group
-            markersCluster = L.markerClusterGroup();
-            managementMap.addLayer(markersCluster);
-            
-            // Add markers for all reports
-            updateMapMarkers();
-        }
+                const chajariCoords = [-30.7500, -57.9833];
+                managementMap = L.map('map').setView(chajariCoords, 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(managementMap);
+
+                // ---- CORRECCIÓN AQUÍ ----
+                // En initManagementMap de Madryn (y en el fusionado que te pasé)
+                managementMapMarkers = L.markerClusterGroup({ 
+                    spiderfyOnMaxZoom: true,
+                    showCoverageOnHover: true,
+                    zoomToBoundsOnClick: true,
+                    iconCreateFunction: function(cluster) {
+                        const count = cluster.getChildCount();
+                        let c = ' marker-cluster-'; 
+                        if (count < 10) c += 'custom-small';
+                        else if (count < 100) c += 'custom-medium';
+                        else c += 'custom-large';
+                        
+                        // const clusterIconSize = 30; // Madryn usaba 30px para el div interno, 40px para el ícono total
+                        // HTML para el cluster
+                        // const html = `<div class="w-full h-full flex items-center justify-center"><span style="display: block; width: 100%; text-align: center; line-height: ${clusterIconSize}px;">${count}</span></div>`;
+                        // Simplifiquemos el HTML, el CSS hará el trabajo de centrado:
+                        const html = `<span>${count}</span>`;
+
+                        return L.divIcon({ 
+                            html: html, 
+                            className: 'marker-cluster ' + c, // Las clases de color vendrán de .marker-cluster-custom-small/medium/large
+                            iconSize: new L.Point(40, 40)  // Tamaño TOTAL del cluster (ej. 40x40 píxeles)
+                        });
+                    }
+                });
+
+                managementMap.addLayer(managementMapMarkers);
+                // updateMapMarkers(); // Se llama desde escucharReclamosDeFirebase
+
+                // Llamar a la función para añadir la leyenda flotante (si la tienes definida y quieres usarla)
+                if (typeof addLegendToMapChajari === "function") {
+                    addLegendToMapChajari();
+                } else {
+                    console.warn("FUNCIÓN addLegendToMapChajari NO ESTÁ DEFINIDA (Chajarí).");
+                }
+                console.log("Chajarí: managementMap y managementMapMarkers (clusters) inicializados.");
+
+            }        
         
-        // Update markers on management map
         function updateMapMarkers() {
-            // Clear all existing markers
-            markersCluster.clearLayers();
+            console.log("updateMapMarkers llamada. filteredReports para el mapa:", JSON.parse(JSON.stringify(filteredReports)));
             
-            // Define incident types with colors and icons
+            if (!markersCluster) {
+                console.error("markersCluster no está inicializado en updateMapMarkers!");
+                return;
+            }
+            if (!managementMap) {
+                console.error("managementMap no está inicializado en updateMapMarkers!");
+                return;
+            }
+
+            markersCluster.clearLayers(); // Limpiar marcadores anteriores
+            
             const incidentTypes = {
                 'bache': {color: 'red', icon: 'fa-road'},
                 'semaforo': {color: 'yellow', icon: 'fa-traffic-light'},
@@ -658,447 +1333,514 @@
                 'otro': {color: 'orange', icon: 'fa-exclamation-triangle'}
             };
             
-            // Add markers for each report
-            allReports.forEach(report => {
-                const typeInfo = incidentTypes[report.type] || incidentTypes['otro'];
-                const marker = L.marker([report.lat, report.lng], {
-                    icon: L.divIcon({
-                        className: '',
-                        html: `<div class="incident-marker bg-${typeInfo.color}-500"><i class="fas ${typeInfo.icon} text-xs"></i></div>`,
-                        iconSize: [20, 20]
-                    })
-                });
-                
-                marker.bindPopup(`
-                    <div class="font-bold">${report.title}</div>
-                    <div class="text-sm mb-1">${report.description}</div>
-                    <div class="text-xs">
-                        <span class="font-semibold">ID:</span> #${report.id}<br>
-                        <span class="font-semibold">Fecha:</span> ${report.date}<br>
-                        <span class="font-semibold">Estado:</span> ${report.status}
-                    </div>
-                    <div class="mt-2">
-                        <button onclick="openReportModal(${report.id})" class="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">
-                            Ver detalles
-                        </button>
-                    </div>
-                `);
-                
-                markersCluster.addLayer(marker);
-            });
-        }
-        
-        // User Map
-        function initUserMap() {
-            // Coordinates for Chajarí, Entre Ríos
-            const chajariCoords = [-30.7500, -57.9833];
-            
-            userMap = L.map('userMap').setView(chajariCoords, 14);
-            
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(userMap);
-            
-            // Handle map clicks
-            userMap.on('click', function(e) {
-                if (selectedLocation) {
-                    userMap.removeLayer(selectedLocation);
-                }
-                
-                selectedLocation = L.marker(e.latlng, {
-                    icon: L.divIcon({
-                        className: '',
-                        html: '<div class="incident-marker bg-red-500"><i class="fas fa-map-pin text-xs"></i></div>',
-                        iconSize: [20, 20]
-                    })
-                }).addTo(userMap);
-                
-                // Show report form
-                document.getElementById('reportForm').classList.remove('hidden');
-                document.getElementById('successMessage').classList.add('hidden');
-                
-                // Scroll to form if on mobile
-                if (window.innerWidth < 768) {
-                    document.getElementById('reportForm').scrollIntoView({behavior: 'smooth'});
-                }
-            });
-        }
-        
-        // Report form handling
-        function setupReportForm() {
-            const reportForm = document.getElementById('reportForm');
-            const incidentForm = document.getElementById('incidentForm');
-            const cancelReportBtn = document.getElementById('cancelReportBtn');
-            const successMessage = document.getElementById('successMessage');
-            const newReportBtn = document.getElementById('newReportBtn');
-            const openCameraBtn = document.getElementById('openCameraBtn');
-            const fileInput = document.getElementById('fileInput');
-            const cameraPreview = document.getElementById('cameraPreview');
-            const previewImage = document.getElementById('previewImage');
-            
-            // Cancel report
-            cancelReportBtn.addEventListener('click', function() {
-                if (selectedLocation) {
-                    userMap.removeLayer(selectedLocation);
-                    selectedLocation = null;
-                }
-                reportForm.classList.add('hidden');
-                cameraPreview.classList.add('hidden');
-                incidentForm.reset();
-            });
-            
-            // Form submission
-            incidentForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                // Get form values
-                const title = document.getElementById('reportTitle').value;
-                const type = document.getElementById('reportType').value;
-                const description = document.getElementById('reportDescription').value;
-                const image = previewImage.src;
-                
-                // Create new report
-                const newReport = {
-                    id: Math.floor(1000 + Math.random() * 9000),
-                    type: type,
-                    title: title,
-                    description: description,
-                    date: formatDate(new Date()),
-                    status: 'Iniciado',
-                    lat: selectedLocation.getLatLng().lat,
-                    lng: selectedLocation.getLatLng().lng,
-                    image: image.includes('data:image') ? image : ''
-                };
-                
-                // Add to reports array
-                allReports.unshift(newReport);
-                filteredReports.unshift(newReport);
-                
-                // Update UI
-                reportForm.classList.add('hidden');
-                successMessage.classList.remove('hidden');
-                document.getElementById('reportNumber').textContent = newReport.id;
-                
-                // Update management view
-                updateMapMarkers();
-                renderReportsTable();
-                updateStatistics();
-                
-                // Reset form
-                cameraPreview.classList.add('hidden');
-                incidentForm.reset();
-            });
-            
-            // New report
-            newReportBtn.addEventListener('click', function() {
-                successMessage.classList.add('hidden');
-                if (selectedLocation) {
-                    userMap.removeLayer(selectedLocation);
-                    selectedLocation = null;
-                }
-            });
-            
-            // Camera/image handling
-            openCameraBtn.addEventListener('click', function() {
-                fileInput.click();
-            });
-            
-            fileInput.addEventListener('change', function(e) {
-                if (fileInput.files && fileInput.files[0]) {
-                    const reader = new FileReader();
-                    
-                    reader.onload = function(e) {
-                        previewImage.src = e.target.result;
-                        cameraPreview.classList.remove('hidden');
+            if (filteredReports && filteredReports.length > 0) {
+                filteredReports.forEach(report => {
+                    // console.log("Procesando para mapa:", report); // Puedes descomentar este si necesitas depurar cada reporte
+                    if (report.lat === undefined || report.lng === undefined || report.lat === null || report.lng === null) { 
+                        console.warn("Reporte filtrado sin coordenadas válidas o nulas:", report.id, report);
+                        return; 
                     }
+
+                    const typeInfo = incidentTypes[report.type] || incidentTypes['otro'];
                     
-                    reader.readAsDataURL(fileInput.files[0]);
-                }
-            });
-        }
-        
-        // Apply filters to reports
-        function applyFilters() {
-            const typeFilter = document.getElementById('filterType').value;
-            const statusFilter = document.getElementById('filterStatus').value;
-            const dateFilter = document.getElementById('filterDate').value;
-            
-            filteredReports = allReports.filter(report => {
-                // Type filter
-                if (typeFilter !== 'all' && report.type !== typeFilter) {
-                    return false;
-                }
-                
-                // Status filter
-                if (statusFilter !== 'all' && report.status !== statusFilter) {
-                    return false;
-                }
-                
-                // Date filter
-                if (dateFilter) {
-                    const filterDate = new Date(dateFilter);
-                    const reportDate = parseDate(report.date);
-                    
-                    if (filterDate.getDate() !== reportDate.getDate() || 
-                        filterDate.getMonth() !== reportDate.getMonth() || 
-                        filterDate.getFullYear() !== reportDate.getFullYear()) {
-                        return false;
-                    }
-                }
-                
-                return true;
-            });
-            
-            currentPage = 1;
-        }
-        
-        // Render reports table with pagination
-        function renderReportsTable() {
-            const tableBody = document.getElementById('reportsTableBody');
-            tableBody.innerHTML = '';
-            
-            // Sort reports
-            filteredReports.sort((a, b) => {
-                let valueA, valueB;
-                
-                switch (sortColumn) {
-                    case 'id':
-                        valueA = a.id;
-                        valueB = b.id;
-                        break;
-                    case 'type':
-                        valueA = a.type;
-                        valueB = b.type;
-                        break;
-                    case 'date':
-                        valueA = parseDate(a.date);
-                        valueB = parseDate(b.date);
-                        break;
-                    case 'status':
-                        valueA = a.status;
-                        valueB = b.status;
-                        break;
-                    default:
-                        valueA = a[sortColumn];
-                        valueB = b[sortColumn];
-                }
-                
-                if (sortDirection === 'asc') {
-                    return valueA > valueB ? 1 : -1;
-                } else {
-                    return valueA < valueB ? 1 : -1;
-                }
-            });
-            
-            // Calculate pagination
-            const startIndex = (currentPage - 1) * rowsPerPage;
-            const endIndex = Math.min(startIndex + rowsPerPage, filteredReports.length);
-            totalPages = Math.ceil(filteredReports.length / rowsPerPage);
-            
-            // Update pagination info
-            document.getElementById('paginationInfo').innerHTML = `
-                Mostrando <span class="font-medium">${startIndex + 1}</span> a 
-                <span class="font-medium">${endIndex}</span> de 
-                <span class="font-medium">${filteredReports.length}</span> resultados
-            `;
-            
-            // Update page numbers
-            const pageNumbersContainer = document.getElementById('pageNumbers');
-            pageNumbersContainer.innerHTML = '';
-            
-            const maxPagesToShow = 5;
-            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
-            let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-            
-            if (endPage - startPage + 1 < maxPagesToShow) {
-                startPage = Math.max(1, endPage - maxPagesToShow + 1);
-            }
-            
-            for (let i = startPage; i <= endPage; i++) {
-                const pageBtn = document.createElement('button');
-                pageBtn.className = `relative inline-flex items-center px-4 py-2 border text-sm font-medium ${i === currentPage ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}`;
-                pageBtn.textContent = i;
-                pageBtn.addEventListener('click', () => {
-                    currentPage = i;
-                    renderReportsTable();
+                    const marker = L.marker([report.lat, report.lng], {
+                        icon: L.divIcon({
+                            className: '', 
+                            html: `<div class="incident-marker bg-${typeInfo.color}-500 flex items-center justify-center"><i class="fas ${typeInfo.icon} text-xs text-white"></i></div>`, 
+                            iconSize: [20, 20],
+                            iconAnchor: [10, 10] 
+                        })
+                    });
+
+                    marker.reportId = report.id; // <--- ESTA LÍNEA ES IMPORTANTE
+
+                    marker.bindPopup(`
+                        <div class="font-bold text-sm">${report.title || 'Sin título'}</div>
+                        <div class="text-xs mb-1">${report.description || 'Sin descripción'}</div>
+                        <hr class="my-1">
+                        <div class="text-xs">
+                            <strong>ID:</strong> #${report.id}<br>
+                            <strong>Fecha:</strong> ${report.date || 'N/A'}<br>
+                            <strong>Estado:</strong> ${report.status || 'N/A'}
+                        </div>
+                        <div class="mt-2">
+                            <button onclick="openReportModal('${report.id}')" class="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 w-full text-center">
+                                Ver detalles
+                            </button>
+                        </div>
+                    `);
+
+                    // Dentro de updateMapMarkers(), en el marker.on('click', ... )
+
+                    marker.on('click', function(e) {
+                        console.log(`Clic detectado en marcador. ID del reporte asociado al listener: ${report.id}`);
+                        
+                        document.querySelectorAll('#reportsTableBody tr').forEach(tr => {
+                            tr.classList.remove('bg-blue-200'); 
+                        });
+
+                        const selectorFila = `#reportsTableBody tr[data-report-id="${report.id}"]`;
+                        let targetRow = document.querySelector(selectorFila);
+                        
+                        if (targetRow) {
+                            console.log("FILA ENCONTRADA (pág. actual) para ID:", report.id, targetRow);
+                            targetRow.classList.add('bg-blue-200');
+                            targetRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); // <--- AÑADIDO/DESCOMENTADO
+                        } else {
+                            console.warn(`Fila para reporte ID ${report.id} no encontrada en la página actual. Intentando cambiar de página.`);
+                            const reportIndexInFiltered = filteredReports.findIndex(r => r.id === report.id);
+
+                            if (reportIndexInFiltered !== -1) {
+                                const targetPage = Math.ceil((reportIndexInFiltered + 1) / rowsPerPage);
+                                console.log(`Reporte ${report.id} en pág. ${targetPage}. Actual: ${currentPage}`);
+
+                                if (targetPage !== currentPage) {
+                                    console.log(`Cambiando a pág. ${targetPage} para reporte ${report.id}`);
+                                    currentPage = targetPage;
+                                    renderReportsTable(); 
+
+                                    setTimeout(() => {
+                                        targetRow = document.querySelector(`#reportsTableBody tr[data-report-id="${report.id}"]`);
+                                        if (targetRow) {
+                                            console.log("FILA ENCONTRADA (después de cambiar pág.) para ID:", report.id, targetRow);
+                                            targetRow.classList.add('bg-blue-200');
+                                            targetRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); // <--- AÑADIDO/DESCOMENTADO
+                                        } else {
+                                            console.warn(`Aún no se encontró fila para ID ${report.id} después de cambiar pág.`);
+                                        }
+                                    }, 100); 
+                                } else {
+                                    console.error(`Reporte ${report.id} en pág. actual (${currentPage}) pero fila no renderizada.`);
+                                }
+                            } else {
+                                console.error(`Reporte ${report.id} del marcador NO encontrado en filteredReports.`);
+                            }
+                        }
+                    });
+
+                    markersCluster.addLayer(marker);
                 });
-                pageNumbersContainer.appendChild(pageBtn);
-            }
-            
-            // Update pagination button states
-            document.getElementById('prevPage').disabled = currentPage === 1;
-            document.getElementById('nextPage').disabled = currentPage === totalPages;
-            document.getElementById('firstPage').disabled = currentPage === 1;
-            document.getElementById('lastPage').disabled = currentPage === totalPages;
-            document.getElementById('prevPageMobile').disabled = currentPage === 1;
-            document.getElementById('nextPageMobile').disabled = currentPage === totalPages;
-            
-            // Add rows for current page
-            for (let i = startIndex; i < endIndex; i++) {
-                const report = filteredReports[i];
-                const row = document.createElement('tr');
-                
-                // Define type colors and labels
-                const typeInfo = {
-                    'bache': {color: 'red', label: 'Bache'},
-                    'semaforo': {color: 'yellow', label: 'Semáforo'},
-                    'limpieza': {color: 'green', label: 'Limpieza'},
-                    'transito': {color: 'blue', label: 'Tránsito'},
-                    'alumbrado': {color: 'purple', label: 'Alumbrado'},
-                    'otro': {color: 'orange', label: 'Otro'}
-                };
-                
-                // Define status colors
-                const statusInfo = {
-                    'Iniciado': 'bg-blue-100 text-blue-800',
-                    'En proceso': 'bg-yellow-100 text-yellow-800',
-                    'Solucionado': 'bg-green-100 text-green-800'
-                };
-                
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">#${report.id}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-${typeInfo[report.type].color}-100 text-${typeInfo[report.type].color}-800">
-                            ${typeInfo[report.type].label}
-                        </span>
-                    </td>
-                    <td class="px-6 py-4">${report.title}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${report.date}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="status-badge ${statusInfo[report.status]}">
-                            ${report.status}
-                        </span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <button onclick="openReportModal(${report.id})" class="text-blue-600 hover:text-blue-900 mr-2">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                        ${report.status !== 'Solucionado' ? `
-                        <button onclick="updateReportStatus(${report.id}, 'Solucionado')" class="text-green-600 hover:text-green-900">
-                            <i class="fas fa-check"></i>
-                        </button>
-                        ` : ''}
-                    </td>
-                `;
-                
-                tableBody.appendChild(row);
-            }
-        }
-        
-        // Update statistics
-        function updateStatistics() {
-            const today = new Date();
-            const todayStr = formatDate(today);
-            const thisMonth = today.getMonth() + 1;
-            const thisYear = today.getFullYear();
-            
-            // Calculate stats
-            const todayReportsCount = allReports.filter(r => r.date === todayStr).length;
-            const monthReportsCount = allReports.filter(r => {
-                const reportDate = parseDate(r.date);
-                return reportDate.getMonth() + 1 === thisMonth && reportDate.getFullYear() === thisYear;
-            }).length;
-            
-            const solvedCount = allReports.filter(r => r.status === 'Solucionado').length;
-            const solvedPercentage = allReports.length > 0 ? Math.round((solvedCount / allReports.length) * 100) : 0;
-            
-            const urgentCount = allReports.filter(r => r.type === 'bache' || r.type === 'semaforo').length;
-            
-            // Update UI
-            document.getElementById('todayReports').textContent = todayReportsCount;
-            document.getElementById('monthReports').textContent = monthReportsCount;
-            document.getElementById('solvedPercentage').textContent = `${solvedPercentage}%`;
-            document.getElementById('urgentReports').textContent = urgentCount;
-        }
-        
-        // Open report modal
-        function openReportModal(reportId) {
-            const report = allReports.find(r => r.id === reportId);
-            if (!report) return;
-            
-            currentReportId = reportId;
-            
-            // Update modal content
-            document.getElementById('modalReportId').textContent = report.id;
-            document.getElementById('modalTitle').textContent = report.title;
-            document.getElementById('modalType').textContent = getTypeLabel(report.type);
-            document.getElementById('modalStatus').innerHTML = `
-                <span class="status-badge ${getStatusClass(report.status)}">
-                    ${report.status}
-                </span>
-            `;
-            document.getElementById('modalDate').textContent = report.date;
-            document.getElementById('modalLocation').textContent = `Lat: ${report.lat.toFixed(4)}, Lng: ${report.lng.toFixed(4)}`;
-            document.getElementById('modalDescription').textContent = report.description;
-            
-            // Update image
-            const imageContainer = document.getElementById('modalImageContainer');
-            const image = document.getElementById('modalImage');
-            
-            if (report.image) {
-                image.src = report.image;
-                imageContainer.classList.remove('hidden');
             } else {
-                imageContainer.classList.add('hidden');
+                // ---- PEQUEÑO AJUSTE EN ESTE MENSAJE ----
+                console.log("updateMapMarkers: No hay reportes filtrados para mostrar en el mapa."); 
             }
-            
-            // Update action buttons
-            const inProgressBtn = document.getElementById('markInProgressBtn');
-            const solvedBtn = document.getElementById('markSolvedBtn');
-            
-            inProgressBtn.classList.toggle('hidden', report.status === 'En proceso');
-            solvedBtn.classList.toggle('hidden', report.status === 'Solucionado');
-            
-            // Show modal
-            document.getElementById('reportModal').classList.remove('hidden');
         }
-        
-        // Close modal
-        function closeModal() {
-            document.getElementById('reportModal').classList.add('hidden');
-        }
-        
-        // Update report status
-        function updateReportStatus(reportId, newStatus) {
-            const reportIndex = allReports.findIndex(r => r.id === reportId);
-            if (reportIndex === -1) return;
+
+        function initUserMap() {
+            console.log("Inicializando userMap (solo base) para Chajarí...");
+            const chajariCoords = [-30.7500, -57.9833]; // <-- COORDENADAS DE CHAJARÍ
             
-            allReports[reportIndex].status = newStatus;
-            
-            // Update filtered reports if needed
-            const filteredIndex = filteredReports.findIndex(r => r.id === reportId);
-            if (filteredIndex !== -1) {
-                filteredReports[filteredIndex].status = newStatus;
+            if (!userMap) {
+                // Asegúrate que tu div para este mapa en el HTML tenga id="userMap"
+                userMap = L.map('userMap').setView(chajariCoords, 13); // <-- CENTRADO EN CHAJARÍ, zoom 13
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+                    attribution: '© OpenStreetMap contributors' 
+                }).addTo(userMap);
+                console.log("userMap base para Chajarí creado.");
+            } else { 
+                userMap.setView(chajariCoords, 13); 
+                console.log("userMap para Chajarí ya existía, vista asegurada.");
             }
-            
-            // Update UI
-            renderReportsTable();
-            updateMapMarkers();
-            updateStatistics();
+            // El botón GPS y el listener de clic se añaden después, cuando se activa la pestaña.
+            // Dentro de initUserMap()
+            // ... (después de L.tileLayer(...).addTo(userMap);) ...
+            if (!userMapExistingReportMarkers) { // Crear solo si no existe
+                userMapExistingReportMarkers = L.layerGroup().addTo(userMap);
+                console.log("Chajarí: LayerGroup userMapExistingReportMarkers creado y añadido a userMap.");
+            }
+        }
+
+        // ***** INICIO DEL BLOQUE B - NUEVAS FUNCIONES ***** (YA ESTÁN PEGADAS)
+        function actualizarMarcadorYFormulario(latLng) { /* ... (código que ya tienes) ... */ 
+             if (!userMap || !latLng || typeof latLng.lat === 'undefined' || typeof latLng.lng === 'undefined') { console.error("actualizarMarcadorYFormulario: userMap o latLng no válidos.", userMap, latLng); return; }
+            if (selectedLocation) { userMap.removeLayer(selectedLocation); }
+            try { selectedLocation = L.marker(latLng).addTo(userMap); } catch (error) { console.error("Error al crear L.marker:", error); alert("Error al colocar marcador."); return; }
+            if (reportFormContainerEl) reportFormContainerEl.classList.remove('hidden');
+            if (successMessageDivEl) successMessageDivEl.classList.add('hidden');
+            if (window.innerWidth < 768 && reportFormContainerEl) { reportFormContainerEl.scrollIntoView({ behavior: 'smooth' }); }
+        }
+        function obtenerUbicacionGPSParaUserMap() { /* ... (código que ya tienes) ... */
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition( (position) => {
+                    const nuevaPosicion = L.latLng(position.coords.latitude, position.coords.longitude);
+                    if (userMap) { userMap.flyTo(nuevaPosicion, 17); actualizarMarcadorYFormulario(nuevaPosicion); }
+                }, (error) => { /* ... manejo de error de GPS ... */ 
+                    console.warn("Error al obtener ubicación GPS:", error.message, "Código:", error.code);
+                    let alertMessage = "No se pudo obtener tu ubicación GPS. ";
+                    if (error.code === 1) alertMessage += "Has denegado el permiso."; else if (error.code === 2) alertMessage += "Ubicación no disponible."; else if (error.code === 3) alertMessage += "Timeout.";
+                    alert(alertMessage + " Selecciona manualmente.");
+                }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+            } else { alert("Geolocalización no soportada."); }
+        }
+
+          function addLegendToMapChajari() {
+        if (!managementMap || !CHAJARI_INCIDENT_TYPES) {
+            console.warn("Chajarí: Mapa de gestión o tipos de incidente no definidos para la leyenda.");
+            return;
+        }
+        const legend = L.control({position: 'topright'}); // O 'topright', 'bottomleft'
+
+        legend.onAdd = function (map) {
+            const div = L.DomUtil.create('div', 'info chajari-map-legend'); // Nueva clase para el contenedor
+            let content = '<h4>Leyenda</h4><ul>';
+            for (const tipoKey in CHAJARI_INCIDENT_TYPES) {
+                if (tipoKey === 'default') continue; // No mostrar 'default'
+                const tipoInfo = CHAJARI_INCIDENT_TYPES[tipoKey];
+                content += `<li>
+                                <span class="legend-icon-display ${tipoInfo.colorClass}"> <!-- Usa colorClass -->
+                                    <i class="fas ${tipoInfo.icon}"></i>
+                                </span> 
+                                ${tipoInfo.label}
+                            </li>`;
+            }
+            content += '</ul>';
+            div.innerHTML = content;
+            L.DomEvent.disableClickPropagation(div); // Evitar que clics en leyenda afecten el mapa
+            return div;
+        };
+        legend.addTo(managementMap);
+        console.log("Leyenda flotante de Chajarí añadida al mapa de gestión.");
+    }
+
+        function renderMapMarkersChajari() {
+            if (!managementMapMarkers) { // managementMapMarkers es tu L.markerClusterGroup
+                console.warn("renderMapMarkersChajari: managementMapMarkers no está inicializado.");
+                return;
+            }
+            managementMapMarkers.clearLayers();
+            console.log("Chajarí renderMapMarkers: Mostrando", currentDisplayedReports.length, "reportes en mapa.");
+
+            if (currentDisplayedReports && currentDisplayedReports.length > 0) {
+                currentDisplayedReports.forEach(report => {
+                    if (report.latitud != null && report.longitud != null) { // Usar != null para cubrir undefined y null
+                        // Obtener info del tipo desde CHAJARI_INCIDENT_TYPES
+                        const typeInfo = CHAJARI_INCIDENT_TYPES[report.tipoIncidente] || CHAJARI_INCIDENT_TYPES['default'];
+                        
+                        // Crear el DivIcon con la clase de color y el icono FontAwesome
+                        const markerIcon = L.divIcon({
+                            className: `incident-marker-chajari ${typeInfo.colorClass}`, // ej. "incident-marker-chajari ch-bache-bg"
+                            html: `<i class="fas ${typeInfo.icon}"></i>`,
+                            iconSize: [28, 28],     // El tamaño que definiste en tu CSS para .incident-marker-chajari
+                            iconAnchor: [14, 14],   // Centro del ícono
+                            popupAnchor: [0, -14]   // Para que el popup aparezca encima del marcador
+                        });
+
+                        const marker = L.marker([report.latitud, report.longitud], { icon: markerIcon });
+                        
+                        marker.reportData = report; // Adjuntar todos los datos del reporte al marcador
+
+                        // Popup del marcador
+                        marker.bindPopup(`
+                            <b>${typeInfo.label}</b><br>
+                            ${report.titulo || 'Sin título/ubic.'}<br>
+                            Estado: ${report.estado}
+                        `);
+
+                        // Evento de clic en el marcador
+                        marker.on('click', (e) => {
+                            const clickedReport = e.target.reportData;
+                            if (typeof openReportModalChajari === "function") openReportModalChajari(clickedReport.id);
+                            
+                            // Lógica para resaltar fila y cambiar página (ya la tienes, adáptala si es necesario)
+                            let targetRow = document.querySelector(`#reportsTableBodyChajari tr[data-report-id="${clickedReport.id}"]`);
+                            document.querySelectorAll('#reportsTableBodyChajari tr').forEach(tr => tr.classList.remove('bg-blue-200'));
+                            if (targetRow) {
+                                targetRow.classList.add('bg-blue-200');
+                                targetRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                            } else {
+                                const reportIndexInDisplayed = currentDisplayedReports.findIndex(r => r.id === clickedReport.id);
+                                if (reportIndexInDisplayed !== -1) {
+                                    const targetPage = Math.ceil((reportIndexInDisplayed + 1) / currentRowsPerPage);
+                                    if (targetPage !== currentPage && targetPage > 0 && targetPage <= totalPages) {
+                                        currentPage = targetPage;
+                                        renderTableChajari(); // Esto re-renderiza la tabla
+                                        setTimeout(() => {
+                                            targetRow = document.querySelector(`#reportsTableBodyChajari tr[data-report-id="${clickedReport.id}"]`);
+                                            if (targetRow) { targetRow.classList.add('bg-blue-200'); targetRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+                                        }, 150);
+                                    } // ... (resto de la lógica de paginación que ya tenías) ...
+                                }
+                            }
+                        });
+                        managementMapMarkers.addLayer(marker);
+                    } else {
+                        // console.warn("Reporte sin coordenadas:", report.id, report.titulo);
+                    }
+                });
+            }
+            // console.log("Chajarí renderMapMarkers: Marcadores añadidos al cluster.");
+        }
+                
+            function renderUserMapExistingReports(reportsToDisplay) {
+            if (!userMapExistingReportMarkers || !userMap) {
+                console.warn("renderUserMapExistingReports: userMapExistingReportMarkers o userMap no están listos.");
+                return;
+            }
+            if (!CHAJARI_INCIDENT_TYPES) { // Asegurarse que el objeto de tipos exista
+                console.error("renderUserMapExistingReports: CHAJARI_INCIDENT_TYPES no está definido.");
+                return;
+            }
+
+            userMapExistingReportMarkers.clearLayers();
+            console.log(`Chajarí renderUserMapExistingReports: Mostrando ${reportsToDisplay ? reportsToDisplay.length : 0} reportes existentes en userMap.`);
+
+            if (!reportsToDisplay || reportsToDisplay.length === 0) {
+                return; // No hay reportes para mostrar
+            }
+
+            try {
+                reportsToDisplay.forEach(report => {
+                    if (report && report.latitud != null && report.longitud != null && 
+                        !isNaN(parseFloat(report.latitud)) && !isNaN(parseFloat(report.longitud))) {
+
+                        // Obtener información del tipo para el ícono y color
+                        const typeInfo = CHAJARI_INCIDENT_TYPES[report.tipoIncidente.toLowerCase()] || CHAJARI_INCIDENT_TYPES['default'];
+                        
+                        // Crear un DivIcon similar al del managementMap pero quizás más pequeño o sutil
+                        const existingReportIcon = L.divIcon({
+                            className: `incident-marker-chajari ${typeInfo.colorClass} opacity-80`, // Añadir opacidad
+                            html: `<i class="fas ${typeInfo.icon} text-xs"></i>`, // Icono un poco más pequeño (text-xs)
+                            iconSize: [22, 22],     // Marcador un poco más pequeño
+                            iconAnchor: [11, 11],
+                            popupAnchor: [0, -11]
+                        });
+
+                        const marker = L.marker([parseFloat(report.latitud), parseFloat(report.longitud)], { 
+                            icon: existingReportIcon,
+                            opacity: 0.8 // Hacerlos ligeramente transparentes para distinguirlos del marcador de nuevo reporte
+                        });
+
+                        // Popup simple para estos marcadores
+                        let popupContent = `<b>${typeInfo.label}</b><br>`;
+                        if (report.titulo) { 
+                            popupContent += `${report.titulo}<br>`;
+                        }
+                        popupContent += `<small>Estado: ${report.estado || 'N/A'}</small>`;
+                        marker.bindPopup(popupContent);
+
+                        // Opcional: Al hacer clic, también podría abrir el modal de detalles completo
+                        marker.on('click', () => {
+                            if (report.id && typeof openReportModalChajari === "function") {
+                                openReportModalChajari(report.id);
+                            }
+                        });
+
+                        userMapExistingReportMarkers.addLayer(marker);
+                    }
+                });
+                // console.log("Chajarí renderUserMapExistingReports: Marcadores añadidos.");
+            } catch (error) {
+                console.error("ERROR DENTRO DEL BUCLE o lógica de renderUserMapExistingReports:", error);
+            }
+        }              
+
+        // ----- LÓGICA DEL MODAL (CHAJARÍ) -----
+        function openReportModalChajari(reportId) {
+        const report = allReports.find(r => r.id === reportId);
+        if (!report) {
+            console.error("Chajarí: Reporte no encontrado para modal:", reportId);
+            return;
+        }
+        currentReportIdForModal = reportId;
+        console.log("Chajarí: Abriendo modal para reporte:", JSON.parse(JSON.stringify(report)));
+
+        // Título del Modal
+        if (modalTitleEl) { // modalTitleEl es el <h3> con id="modalTitleChajari"
+            modalTitleEl.textContent = `Detalles: ${report.titulo || 'Sin Título'} (#${report.id ? report.id.substring(0,6) : 'N/A'}...)`;
+        }
+
+        // Poblar campos del cuerpo del modal
+        if(modalReportIdActualPEl) modalReportIdActualPEl.textContent = report.id || 'N/A';
+        
+        if(modalTypePEl && CHAJARI_INCIDENT_TYPES) { // Muestra el label del tipo de incidente
+            const typeInfo = CHAJARI_INCIDENT_TYPES[report.tipoIncidente] || CHAJARI_INCIDENT_TYPES['default'];
+            modalTypePEl.textContent = typeInfo.label;
         }
         
-        // Helper function to get type label
-        function getTypeLabel(type) {
-            const types = {
-                'bache': 'Bache',
-                'semaforo': 'Semáforo',
-                'limpieza': 'Limpieza',
-                'transito': 'Tránsito',
-                'alumbrado': 'Alumbrado',
-                'otro': 'Otro'
-            };
-            return types[type] || type;
+        if(modalReportTitlePEl) modalReportTitlePEl.textContent = report.titulo || 'N/A'; // Muestra el título/ubic. breve
+        
+        if(modalStatusPEl) modalStatusPEl.innerHTML = `<span class="status-badge ${getStatusClass(report.estado)}">${report.estado || 'N/A'}</span>`;
+        if(modalDatePEl) modalDatePEl.textContent = report.date || 'N/A'; // 'date' es fechaCreacion formateada
+        if(modalDateModifiedPEl) modalDateModifiedPEl.textContent = report.dateModified || 'N/A'; // 'dateModified' es fechaUltModif formateada
+        if(modalLocationPEl) modalLocationPEl.textContent = (report.latitud != null && report.longitud != null) ? `${Number(report.latitud).toFixed(4)}, ${Number(report.longitud).toFixed(4)}` : 'N/A';
+        if(modalDescriptionPEl) modalDescriptionPEl.textContent = report.descripcion || 'Sin descripción.';
+
+        if (report.imagenURL && modalImageEl && modalImageContainerEl) {
+            modalImageEl.src = report.imagenURL;
+            modalImageContainerEl.classList.remove('hidden');
+        } else if (modalImageContainerEl && modalImageEl) {
+            modalImageContainerEl.classList.add('hidden');
+            modalImageEl.src = '';
+        }
+
+        if(markInProgressBtnEl) markInProgressBtnEl.classList.toggle('hidden', report.estado === 'En proceso' || report.estado === 'Solucionado');
+        if(markSolvedBtnEl) markSolvedBtnEl.classList.toggle('hidden', report.estado === 'Solucionado');
+
+        if(reportModalEl) reportModalEl.classList.remove('hidden');
+    }
+        
+        function closeModalChajari() { /* ... (código de closeModal que ya tienes) ... */
+            if (reportModalEl) { reportModalEl.classList.add('hidden');} currentReportIdForModal = null;
+        }
+        async function updateReportStatusOnModalChajari(newStatus) { /* ... (código que ya tienes) ... */
+            if (currentReportIdForModal) { await updateReportStatusChajari(currentReportIdForModal, newStatus); } closeModalChajari();
+        }
+        async function updateReportStatusChajari(reportId, newStatus) { /* ... (código que ya tienes y funciona) ... */
+            console.log(`Actualizando reporte ${reportId} a estado: ${newStatus}`);
+            const { doc, updateDoc, serverTimestamp } = window.firebaseFirestore; const reportRef = doc(window.db, "reclamos", reportId);
+            try { await updateDoc(reportRef, { estado: newStatus, fechaUltimaModificacion: serverTimestamp() });
+            } catch (error) { console.error("Error al actualizar estado:", error); alert("Error al actualizar estado."); }
+        }
+
+        // ----- LÓGICA DE ESTADÍSTICAS (CHAJARÍ) -----        
+        function updateStatisticsChajari() {
+        // Asegurarse de que los elementos del DOM para las estadísticas estén definidos globalmente
+        // y apunten a los IDs correctos (ej. todayReportsSpanEl, monthReportsSpanEl, 
+        // solvedPercentageSpanEl, urgentReportsSpanEl)
+
+        if (!allReports) { // Comprobar si allReports está definido
+            console.warn("updateStatisticsChajari: allReports no está definido. No se pueden calcular estadísticas.");
+            if (todayReportsSpanEl) todayReportsSpanEl.textContent = '0';
+            if (monthReportsSpanEl) monthReportsSpanEl.textContent = '0';
+            if (solvedPercentageSpanEl) solvedPercentageSpanEl.textContent = '0%';
+            if (urgentReportsSpanEl) urgentReportsSpanEl.textContent = '0'; // Mostrar 0 como cantidad
+            return;
         }
         
-        // Helper function to get status class
+        if (allReports.length === 0) {
+            if (todayReportsSpanEl) todayReportsSpanEl.textContent = '0';
+            if (monthReportsSpanEl) monthReportsSpanEl.textContent = '0';
+            if (solvedPercentageSpanEl) solvedPercentageSpanEl.textContent = '0%';
+            if (urgentReportsSpanEl) urgentReportsSpanEl.textContent = '0'; // Mostrar 0 como cantidad
+            console.log("Chajarí updateStatistics: No hay reportes para calcular.");
+            return;
+        }
+
+        const today = new Date();
+        let todayCount = 0;
+        let monthCount = 0;
+        let solvedCount = 0;
+        let totalPotencialmenteUrgentes = 0;
+        let urgentesActivos = 0;
+
+        allReports.forEach(report => {
+            let reportDateForCreation = null;
+            if (report.date && report.date !== 'Fecha no disponible' && report.date !== 'Fecha inválida') {
+                reportDateForCreation = parseDate(report.date); // parseDate debe devolver un objeto Date o NaN
+            }
+
+            // Reportes de hoy
+            if (reportDateForCreation && !isNaN(reportDateForCreation.getTime()) && isSameDay(reportDateForCreation, today)) {
+                todayCount++;
+            }
+
+            // Reportes del mes
+            if (reportDateForCreation && !isNaN(reportDateForCreation.getTime()) &&
+                reportDateForCreation.getMonth() === today.getMonth() &&
+                reportDateForCreation.getFullYear() === today.getFullYear()
+            ) {
+                monthCount++;
+            }
+
+            // Resueltos
+            if (report.estado === 'Solucionado') { // Asegúrate que 'Solucionado' sea el string exacto
+                solvedCount++;
+            }
+
+            // Lógica para Urgentes (Chajarí) - Ejemplo: Baches y Semáforos
+            // Asumimos report.tipoIncidente está en minúsculas
+            if (report.tipoIncidente === 'bache' || report.tipoIncidente === 'semaforo') {
+                totalPotencialmenteUrgentes++;
+                if (report.estado !== 'Solucionado') { // Asegúrate que 'Solucionado' sea el string exacto
+                    urgentesActivos++;
+                }
+            }
+        });
+
+        if (todayReportsSpanEl) todayReportsSpanEl.textContent = todayCount;
+        if (monthReportsSpanEl) monthReportsSpanEl.textContent = monthCount;
+
+        const percentageSolved = allReports.length > 0 ? Math.round((solvedCount / allReports.length) * 100) : 0; // Corregido aquí, debe ser sobre allReports.length
+        if (solvedPercentageSpanEl) solvedPercentageSpanEl.textContent = `${percentageSolved}%`;
+
+        // Mostrar "Urgentes" como porcentaje de los potencialmente urgentes que no están solucionados
+        const porcentajeUrgentes = totalPotencialmenteUrgentes > 0 
+            ? Math.round((urgentesActivos / totalPotencialmenteUrgentes) * 100) 
+            : 0;
+
+        if (urgentReportsSpanEl) urgentReportsSpanEl.textContent = `${porcentajeUrgentes}%`; 
+
+        // --- AÑADIR TOOLTIP AQUÍ ---
+            // Opción 1: Si el div del card "Urgentes" tiene un ID, por ejemplo "cardUrgentReports"
+            const cardUrgentEl = document.getElementById('cardUrgentReports'); // Asegúrate de que este ID exista en tu HTML
+            if (cardUrgentEl) {
+                cardUrgentEl.setAttribute('title', 
+                    `De ${totalPotencialmenteUrgentes} reportes de tipo Bache o Semáforo, ${urgentesActivos} (${porcentajeUrgentes}%) están pendientes de solución.`
+                );
+            } else {
+                // Opción 2: Poner el title en el parentElement del span del número, si no tiene ID el card
+                // Esto es menos ideal porque el área del tooltip podría ser más pequeña.
+                if (urgentReportsSpanEl.parentElement) {
+                        urgentReportsSpanEl.parentElement.setAttribute('title', 
+                        `De ${totalPotencialmenteUrgentes} reportes de tipo Bache o Semáforo, ${urgentesActivos} (${porcentajeUrgentes}%) están pendientes de solución.`
+                    );
+                }
+            }
+        }
+
+            console.log("Chajarí Estadísticas actualizadas:", { /*...,*/ urgentesPorcentaje: porcentajeUrgentes, urgentesActivos, totalPotencialmenteUrgentes });                 
+
+           // ----- FUNCIÓN AUXILIAR PARA COMPARAR FECHAS -----
+        function isSameDay(date1, date2) {
+            return (
+                date1 &&
+                date2 &&
+                date1.getFullYear() === date2.getFullYear() &&
+                date1.getMonth() === date2.getMonth() &&
+                date1.getDate() === date2.getDate()
+            );
+            }
+
+        // ----- FUNCIONES UTILITARIAS -----
+        function formatDate(date) {
+            if (!(date instanceof Date)) return 'Fecha no disponible';
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+        function parseDate(dateString) {
+            if (!dateString || dateString === 'Fecha no disponible') return new Date(0); // Fecha muy antigua
+            const [day, month, year] = dateString.split('/');
+            return new Date(year, month - 1, day);
+        }
         function getStatusClass(status) {
-            const classes = {
-                'Iniciado': 'bg-blue-100 text-blue-800',
-                'En proceso': 'bg-yellow-100 text-yellow-800',
-                'Solucionado': 'bg-green-100 text-green-800'
-            };
-            return classes[status] || '';
+            switch (status) {
+                case 'Iniciado':
+                    return 'bg-blue-200 text-blue-900';
+                case 'En proceso':
+                    return 'bg-yellow-200 text-yellow-900';
+                case 'Solucionado':
+                    return 'bg-green-200 text-green-900';
+                default:
+                    return 'bg-gray-200 text-gray-900';
+            }
         }
+        function highlightTableRow(reportId) { /* ... */ }
+        
+
+    </script>
+    <!-- FIN DEL SCRIPT PRINCIPAL -->
+
+    <!-- REGISTRO DEL SERVICE WORKER (Adaptado para Chajarí) -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./service-worker_chajari.js')
+                .then(reg => console.log("Chajarí SW: Registrado.", reg))
+                .catch(err => console.error("Chajarí SW: Fallo registro.", err));
+        });
+    }
     </script>
 </body>
 </html>
