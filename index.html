@@ -236,6 +236,17 @@
         body.dark-mode .instructions-panel h3 { color: #93c5fd !important; }
         body.dark-mode .instructions-panel ol { color: #e0e7ff !important; }
         /* === FIN ESTILOS DARK MODE === */
+
+                /* En <style>, FUERA de las reglas .dark-mode */
+        #reportsTableBodyChajari td {
+            color: #374151; /* Un gris oscuro (Tailwind text-gray-700) por defecto para modo claro */
+        }
+
+        /* Y luego para modo oscuro, la regla que ya teníamos para .dark-mode td o .dark-mode .text-gray-XXX la sobrescribirá */
+        body.dark-mode #reportsTableBodyChajari td {
+            color: #d1d5db; /* Un gris claro (Tailwind text-gray-300) */
+        }
+
     </style>
 </head>
 
@@ -260,8 +271,8 @@
         </header>
 
         <!-- Contenedor de Pestañas -->
-        <div class="bg-white rounded-lg shadow-md mb-6">
-            <div class="flex border-b px-2"> <!-- Padding reducido para que el botón de tema no quede tan lejos si estuviera aquí -->
+        <div class="bg-white rounded-lg shadow-md mb-6 overflow-hidden"> <!-- AÑADIDO overflow-hidden -->
+            <div class="flex border-b"> <!-- Padding reducido para que el botón de tema no quede tan lejos si estuviera aquí -->
                 <button id="managementTab" class="tab-button px-4 py-3 font-medium text-gray-700 border-b-2 border-blue-500 bg-blue-50">Gestión de Reclamos</button>
                 <button id="userTab" class="tab-button px-4 py-3 font-medium text-gray-500 hover:text-gray-700">Reportar Incidente</button>
                 <!-- El botón de tema se movió al header principal para mejor alineación global -->
@@ -1044,25 +1055,28 @@
 
         // ----- LÓGICA DE LA TABLA Y PAGINACIÓN (CHAJARÍ) -----        
         function renderTableChajari() {
-            if (!reportsTableBodyEl) {
+            if (!reportsTableBodyEl) { // reportsTableBodyEl es la const global del tbody de Chajarí
                 console.error("Chajarí renderTable: reportsTableBodyEl no encontrado en el DOM.");
                 return;
             }
             reportsTableBodyEl.innerHTML = ''; 
-            // console.log("Chajarí renderTable: currentDisplayedReports ANTES de ordenar y paginar:", JSON.parse(JSON.stringify(currentDisplayedReports)));
+            console.log("Chajarí renderTable: Iniciando renderizado. currentDisplayedReports:", currentDisplayedReports.length);
 
-            // 1. ORDENAMIENTO (Esta lógica ya debería estar bien desde el esqueleto)
+            // 1. ORDENAMIENTO (Asegúrate que currentSortColumn y currentSortDirection se actualicen en handleSortChajari)
             if (currentDisplayedReports && currentDisplayedReports.length > 0) {
                 currentDisplayedReports.sort((a, b) => {
                     let valA = a[currentSortColumn];
                     let valB = b[currentSortColumn];
 
-                    if (currentSortColumn === 'fechaCreacion' || currentSortColumn === 'date' || 
-                        currentSortColumn === 'fechaUltimaModificacion' || currentSortColumn === 'dateModified') {
-                        valA = parseDate(valA instanceof Date ? formatDate(valA) : valA); // Asegurar que sea string DD/MM/YYYY para parseDate
+                    // Manejo especial para fechas
+                    if (['fechaCreacion', 'date', 'fechaUltimaModificacion', 'dateModified'].includes(currentSortColumn)) {
+                        // parseDate debe devolver un objeto Date o algo comparable (ej. timestamp numérico o NaN)
+                        // Asegúrate que los campos 'date' y 'dateModified' en tu objeto 'report' sean strings DD/MM/YYYY
+                        // si parseDate espera ese formato, o ajusta.
+                        valA = parseDate(valA instanceof Date ? formatDate(valA) : valA); 
                         valB = parseDate(valB instanceof Date ? formatDate(valB) : valB);
                     } else if (typeof valA === 'string' && typeof valB === 'string') {
-                        valA = valA.toLowerCase(); // Ordenamiento insensible a mayúsculas para strings
+                        valA = valA.toLowerCase();
                         valB = valB.toLowerCase();
                     }
 
@@ -1072,11 +1086,11 @@
                 });
             }
             
-            // 2. PAGINACIÓN (Esta lógica ya debería estar bien desde el esqueleto)
+            // 2. PAGINACIÓN
             totalPages = Math.ceil(currentDisplayedReports.length / currentRowsPerPage);
-            if (totalPages === 0) totalPages = 1;
+            if (totalPages === 0) totalPages = 1; // Evitar NaN si no hay reportes
             if (currentPage > totalPages) currentPage = totalPages;
-            if (currentPage === 0 && totalPages > 0) currentPage = 1; 
+            if (currentPage <= 0 && totalPages >=1) currentPage = 1; // Evitar página 0 o negativa
 
             const startIndex = (currentPage - 1) * currentRowsPerPage;
             const endIndex = Math.min(startIndex + currentRowsPerPage, currentDisplayedReports.length);
@@ -1085,23 +1099,18 @@
             console.log(`Chajarí renderTable: Renderizando ${paginatedReports.length} reportes para pág. ${currentPage}. (Total filtrados: ${currentDisplayedReports.length})`);
 
             // 3. RENDERIZADO DE FILAS
-            if (paginatedReports.length === 0 && currentDisplayedReports.length === 0 && currentPage === 1) {
+            if (paginatedReports.length === 0) {
                 const row = reportsTableBodyEl.insertRow();
                 const cell = row.insertCell();
-                cell.colSpan = 7; // Número de columnas en tu tabla de Chajarí
-                cell.textContent = 'No hay reportes para mostrar.';
-                cell.className = 'text-center py-4 text-gray-500 dark:text-gray-400';
-            } else if (paginatedReports.length === 0 && currentDisplayedReports.length > 0) {
-                const row = reportsTableBodyEl.insertRow();
-                const cell = row.insertCell();
-                cell.colSpan = 7;
-                cell.textContent = 'No hay reportes en esta página con los filtros actuales.';
-                cell.className = 'text-center py-4 text-gray-500 dark:text-gray-400';
+                cell.colSpan = 7; // Ajusta al número exacto de columnas de tu tabla de Chajarí
+                cell.textContent = currentDisplayedReports.length > 0 ? 'No hay reportes en esta página con los filtros actuales.' : 'No hay reportes para mostrar.';
+                cell.className = 'text-center py-8 text-gray-500 dark:text-gray-400 text-base'; // py-8 para más espacio, text-base
             } else {
                 paginatedReports.forEach(report => {
                     const row = reportsTableBodyEl.insertRow();
                     row.setAttribute('data-report-id', report.id);
                     row.style.cursor = 'pointer';
+                    // Asegúrate de que handleRowClickChajari esté definida y haga lo que esperas
                     row.addEventListener('click', () => { 
                         if(typeof handleRowClickChajari === 'function') handleRowClickChajari(report);
                         else console.warn("FUNCIÓN handleRowClickChajari NECESITA SER COMPLETADA (Chajarí)");
@@ -1109,65 +1118,65 @@
 
                     let cell;
 
-                    // Celda 1: ID
+                    // Celda 1: ID (Más alto, texto oscuro en claro, texto claro en oscuro)
                     cell = row.insertCell();
-                    cell.className = 'px-6 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 max-w-xs overflow-hidden text-ellipsis'; // Clases para truncar
-                    cell.title = report.id || 'S/ID'; // Mostrar ID completo en tooltip
-                    cell.textContent = `#${report.id ? report.id.substring(0,12) : 'S/ID'}...`; // Mostrar una porción más grande pero aún truncada
-                    
-                    // Celda 2: Tipo de Incidente
+                    cell.className = 'px-6 py-2 whitespace-nowrap text-base text-gray-800 dark:text-gray-200';
+                    cell.textContent = `#${report.id ? report.id.substring(0, 10) : 'S/ID'}`; // Mostrar un poco más del ID o completo
+
+                    // Celda 2: Tipo de Incidente (Con badge e icono)
                     cell = row.insertCell();
-                    cell.className = 'px-6 py-2 whitespace-nowrap text-sm';
-                    const typeInfo = CHAJARI_INCIDENT_TYPES[report.tipoIncidente] || CHAJARI_INCIDENT_TYPES['default']; // tipoIncidente ya debería estar normalizado (ej. minúsculas)
-                    
-                    // Determinar clases de color para el badge de tipo (similar a tu tabla original)
-                    let tipoBadgeColorClasses = 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200'; // Default
-                    if (typeInfo.colorClass) { // Si CHAJARI_INCIDENT_TYPES provee colorClass (ej. 'ch-bache-bg')
-                        // Necesitarías mapear esto a clases de Tailwind para el badge
-                        // Ejemplo simple si colorClass es 'bg-red-500':
-                        // tipoBadgeColorClasses = `${typeInfo.colorClass.replace('-500', '-100')} ${typeInfo.colorClass.replace('bg-', 'text-').replace('-500', '-800')}`;
-                        // O usa un switch o un mapeo más directo si los nombres de colorClass son simples:
-                        switch (report.tipoIncidente) {
-                            case 'bache': tipoBadgeColorClasses = 'bg-red-100 text-red-800 dark:bg-red-700 dark:text-red-200'; break;
-                            case 'semaforo': tipoBadgeColorClasses = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-700 dark:text-yellow-200'; break;
-                            case 'limpieza': tipoBadgeColorClasses = 'bg-green-100 text-green-800 dark:bg-green-700 dark:text-green-200'; break;
-                            case 'transito': tipoBadgeColorClasses = 'bg-blue-100 text-blue-800 dark:bg-blue-700 dark:text-blue-200'; break;
-                            case 'alumbrado': tipoBadgeColorClasses = 'bg-purple-100 text-purple-800 dark:bg-purple-700 dark:text-purple-200'; break; // Necesitarás definir colores dark para purple
-                            case 'otro': tipoBadgeColorClasses = 'bg-orange-100 text-orange-800 dark:bg-orange-700 dark:text-orange-200'; break; // Necesitarás colores dark para orange
-                        }
+                    cell.className = 'px-6 py-2 whitespace-nowrap text-base'; // El badge ya tiene padding y tamaño de texto
+                    const typeInfo = CHAJARI_INCIDENT_TYPES[report.tipoIncidente] || CHAJARI_INCIDENT_TYPES['default']; // tipoIncidente ya está en minúsculas
+                    // Clases para el badge de TIPO (fondo claro/texto oscuro en modo claro, fondo oscuro/texto claro en modo oscuro)
+                    let tipoBadgeClasses = `status-badge ${typeInfo.colorClass.replace('-bg', '-100')} ${typeInfo.colorClass.replace('-bg', '-800').replace('ch-', 'text-')} dark:${typeInfo.colorClass.replace('-bg', '-800')} dark:${typeInfo.colorClass.replace('-bg', '-100').replace('ch-', 'text-')}`;
+                    // Ejemplo: si colorClass es 'ch-bache-bg', se convierte en 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100' (necesitas estas clases de color en tu CSS o Tailwind)
+                    // Simplificando si usas directamente los colores de Tailwind en CHAJARI_INCIDENT_TYPES
+                    // Si CHAJARI_INCIDENT_TYPES tiene { colorName: 'red-500', ... }
+                    // tipoBadgeClasses = `status-badge bg-${typeInfo.colorName.replace('-500', '-100')} text-${typeInfo.colorName.replace('-500', '-800')} dark:bg-${typeInfo.colorName.replace('-500', '-700')} dark:text-${typeInfo.colorName.replace('-500', '-200')}`;
+                    // Por ahora, usaré la lógica del switch que ya tenías, que es más explícita:
+                    switch (report.tipoIncidente) {
+                        case 'bache': tipoBadgeClasses = 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100'; break;
+                        case 'semaforo': tipoBadgeClasses = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100'; break;
+                        case 'limpieza': tipoBadgeClasses = 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100'; break;
+                        case 'transito': tipoBadgeClasses = 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100'; break;
+                        case 'alumbrado': tipoBadgeClasses = 'bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-100'; break;
+                        case 'otro': tipoBadgeClasses = 'bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-100'; break;
+                        default: tipoBadgeClasses = 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200';
                     }
-                    cell.innerHTML = `<span class="status-badge ${tipoBadgeColorClasses}">
+                    cell.innerHTML = `<span class="status-badge ${tipoBadgeClasses}">
                                         <i class="fas ${typeInfo.icon} mr-1"></i>${typeInfo.label}
                                     </span>`;
                     
                     // Celda 3: Título/Ubicación (campo 'titulo' de Chajarí)
                     cell = row.insertCell();
-                    cell.className = 'px-6 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300';
+                    cell.className = 'px-6 py-2 whitespace-nowrap text-base text-gray-800 dark:text-gray-200';
                     cell.textContent = report.titulo || 'N/A';
                     
                     // Celda 4: Fecha Creación
                     cell = row.insertCell();
-                    cell.className = 'px-6 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300';
-                    cell.textContent = report.date || 'N/A'; // 'date' viene de listenToReports
+                    cell.className = 'px-6 py-2 whitespace-nowrap text-base text-gray-800 dark:text-gray-200';
+                    cell.textContent = report.date || 'N/A'; 
                     
                     // Celda 5: Estado
                     cell = row.insertCell();
-                    cell.className = 'px-6 py-2 whitespace-nowrap text-sm';
-                    cell.innerHTML = `<span class="status-badge ${getStatusClass(report.estado)}">${report.estado}</span>`;
+                    cell.className = 'px-6 py-2 whitespace-nowrap text-base';
+                    // Asegúrate que getStatusClass devuelva las clases correctas para modo claro Y oscuro
+                    cell.innerHTML = `<span class="status-badge ${getStatusClass(report.estado)}">${report.estado}</span>`; 
                     
                     // Celda 6: Últ. Modif.
                     cell = row.insertCell();
-                    cell.className = 'px-6 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300';
+                    cell.className = 'px-6 py-2 whitespace-nowrap text-base text-gray-800 dark:text-gray-200';
                     cell.textContent = report.dateModified || '-';
                     
                     // Celda 7: Acciones
                     cell = row.insertCell();
-                    cell.className = 'px-6 py-2 whitespace-nowrap text-right text-sm font-medium';
-                    let actionsHTML = `<button onclick="event.stopPropagation(); openReportModalChajari('${report.id}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 mr-2" title="Ver Detalles"><i class="fas fa-eye"></i></button>`;
-                    if (report.estado !== 'Solucionado') { // Asumiendo que 'Solucionado' es el string exacto
-                        actionsHTML += `<button onclick="event.stopPropagation(); updateReportStatusOnModalChajari('${report.id}', 'Solucionado')" class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300" title="Marcar como Solucionado"><i class="fas fa-check"></i></button>`;
+                    cell.className = 'px-6 py-2 whitespace-nowrap text-base font-medium flex items-center justify-end space-x-2';
+                    let actionsHTML = `<button onclick="event.stopPropagation(); openReportModalChajari('${report.id}')" class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300" title="Ver Detalles"><i class="fas fa-eye text-lg"></i></button>`;
+                    if (report.estado !== 'Solucionado') {
+                        actionsHTML += `<button onclick="event.stopPropagation(); updateReportStatusOnModalChajari('${report.id}', 'Solucionado')" class="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300" title="Marcar como Solucionado"><i class="fas fa-check text-lg"></i></button>`;
+                    } else {
+                        actionsHTML += `<span class="inline-block w-6 h-6"></span>`; // Placeholder para mantener alineación (ajusta w-6)
                     }
-                    // Aquí puedes añadir más botones si tu Chajarí original los tenía (ej. para "En proceso")
                     cell.innerHTML = actionsHTML;
                 });
             }
@@ -1176,7 +1185,7 @@
             if (typeof updatePaginationControlsChajari === "function") {
                 updatePaginationControlsChajari();
             } else {
-                console.warn("FUNCIÓN updatePaginationControlsChajari NO DEFINIDA/RELLENADA. La paginación no se actualizará.");
+                console.warn("FUNCIÓN updatePaginationControlsChajari NO DEFINIDA/RELLENADA.");
             }
         }
 
