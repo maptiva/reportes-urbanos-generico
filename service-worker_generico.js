@@ -3,18 +3,18 @@ const CACHE_NAME = 'chajari-reportes-cache-v1'; // Empieza con v1 para Chajarí
 // ¡¡¡REVISA Y COMPLETA ESTA LISTA CON TODOS TUS ASSETS DE CHAJARÍ!!!
 const urlsToCache = [
   './',                          // Raíz (sirve index.html)
-  './index.html',                // Archivo HTML principal de Chajarí
-  './manifest_chajari.json',     // Tu manifiesto
+  './index_generico.html',                // Archivo HTML principal de Chajarí
+  './manifest_generico.json',     // Tu manifiesto
   // Archivos locales (si los tienes, si no, elimínalos o coméntalos)
   // './css/style_chajari.css',    // Ejemplo si tuvieras un CSS externo para Chajarí
   // './js/script_chajari.js',     // Ejemplo si tuvieras un JS externo para Chajarí
   
   // Iconos PWA (rutas relativas a la raíz)
-  './icons/icon_chajari_192.png',
-  './icons/icon_chajari_512.png',
+  './icons/icon_maptiva_192.png',
+  './icons/icon_maptiva_512.png',
   
   // Otras imágenes locales importantes (ej. el escudo del header)
-  './img/escudo_chajari.png',     // Asegúrate que esta ruta sea correcta
+  './img/escudo_maptiva.png',     // Asegúrate que esta ruta sea correcta
   
   // CDNs y Librerías Externas que usa tu chajari.html
   'https://cdn.tailwindcss.com', // Quitar si da problemas CORS y prefieres que lo cachee el navegador

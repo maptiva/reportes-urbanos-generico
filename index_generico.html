@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Reportes Urbanos - Chajarí</title>
+    <title>Sistema de Reportes Urbanos - Maptiva</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
@@ -11,9 +11,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- ETIQUETAS PWA para Chajarí -->
-    <link rel="manifest" href="./manifest_chajari.json">
+    <link rel="manifest" href="./manifest_generico.json">
     <meta name="theme-color" content="#3B82F6"> <!-- Azul Tailwind blue-500 -->
-    <link rel="apple-touch-icon" href="./icons/icon_chajari_192.png">
+    <link rel="apple-touch-icon" href="./icons/icon_maptiva_192.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Reportes CH">
@@ -245,10 +245,10 @@
         <header class="bg-blue-600 text-white p-4 shadow-md rounded-lg mb-6"> <!-- Clases base de tu header de Chajarí -->
             <div class="flex justify-between items-center">
                 <div class="flex items-center">
-                    <img src="img/escudo_chajari.png" alt="Escudo Municipalidad de Chajarí" class="h-12 mr-3">
+                    <img src="img/logo_maptiva.png" alt="Escudo Municipalidad de Chajarí" class="h-12 mr-3">
                     <div>
                         <h1 class="text-2xl font-bold">Sistema de Reportes Urbanos</h1>
-                        <p class="text-sm">Municipalidad de Chajarí, Entre Ríos</p>
+                        <p class="text-sm">Propuesta para Gestión y Seguimiento de Incidentes Urbanos</p>
                     </div>
                 </div>
                 <div>
@@ -1836,7 +1836,7 @@
     <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./service-worker_chajari.js')
+            navigator.serviceWorker.register('./service-worker_generico.js')
                 .then(reg => console.log("Chajarí SW: Registrado.", reg))
                 .catch(err => console.error("Chajarí SW: Fallo registro.", err));
         });
