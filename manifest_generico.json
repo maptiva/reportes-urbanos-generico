@@ -1,7 +1,7 @@
 {
   "name": "Sistema de Reportes Urbanos - Maptiva",
-  "short_name": "Reportes CH",
-  "description": "Aplicación para el reporte y gestión de incidentes urbanos en Chajarí, Entre Ríos.",
+  "short_name": "PWA Reportes",
+  "description": "Aplicación para el reporte y gestión de incidentes urbanos",
   "start_url": "./index.html", 
   "display": "standalone",
   "background_color": "#ffffff",

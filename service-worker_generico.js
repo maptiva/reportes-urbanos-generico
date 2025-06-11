@@ -3,7 +3,7 @@ const CACHE_NAME = 'chajari-reportes-cache-v1'; // Empieza con v1 para Chajarí
 // ¡¡¡REVISA Y COMPLETA ESTA LISTA CON TODOS TUS ASSETS DE CHAJARÍ!!!
 const urlsToCache = [
   './',                          // Raíz (sirve index.html)
-  './index_generico.html',                // Archivo HTML principal de Chajarí
+  './index.html',                // Archivo HTML principal de Chajarí
   './manifest_generico.json',     // Tu manifiesto
   // Archivos locales (si los tienes, si no, elimínalos o coméntalos)
   // './css/style_chajari.css',    // Ejemplo si tuvieras un CSS externo para Chajarí
